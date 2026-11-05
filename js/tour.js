@@ -1,29 +1,28 @@
-// Guided tour. It walks through the real pages and highlights what matters on each. For a new user
-// (no data yet) it loads demo data first so every chart has something in it, and removes it again
-// when the tour ends — the user then starts fresh with their own starting estimates.
+// Guided tour of the real pages. With no data of your own it loads sample data first so every chart
+// has something in it, and removes it again when the tour ends.
 import * as store from './store.js';
 import { esc } from './ui.js';
 import { loadDemo, removeDemo } from './demo.js';
 
 const STEPS = [
-  { title: 'Welcome to Ledgerline', text: 'A private tracker for <b>where your money sits</b>, what it earns — plus <b>where it goes</b> and a short daily journal. This tour uses <b>sample data</b> so every chart has something in it; it\'s deleted when the tour ends.', demoNote: true },
-  { route: '/', sel: '[data-tour=nw-stats]', title: 'Your money at a glance', text: 'Net worth, how it changed over the past 12 months, what you could reach within days (liquid net worth) and what your money earns in interest per month. Numbers marked <span class="tag est">estimate</span> use your starting estimates until there\'s real history.' },
-  { route: '/', sel: '[data-tour=nw-chart]', title: 'Snapshots build the trend', text: 'No income to log: every time you update balances, a snapshot is added here. Every few weeks or monthly is plenty.' },
-  { route: '/networth/accounts', sel: '.acct-group', up: null, title: 'Accounts, grouped by type', text: 'Everything you own and owe — bank, savings, exchanges, brokers, wallets, things you own, debts — grouped by type with totals. Each keeps its own currency; crypto and stocks can list holdings with live prices.' },
-  { route: '/networth/update', sel: '#uf', title: 'Update balances', text: 'Type what each account is worth. Values are pre-filled with the last ones — change only what moved. Accounts with an APY grow by themselves in between.' },
-  { route: '/networth/interest', sel: '#main .stats', title: 'Interest follow-up', text: 'What every yield account earns per day, month and year, what you\'ve earned this year, what your debts cost — and money sitting idle that earns nothing.' },
-  { route: '/networth/analytics', sel: '[data-tour=health]', title: 'Analytics', text: 'Where your money is held (bank, broker, exchange, wallet…), what it\'s for, how liquid and concentrated it is, a balance-sheet check and your target allocation.' },
-  { route: '/spending', sel: '#s-pace', up: '.card', title: 'Spending, month by month', text: 'Where money goes: spending through the month vs last month and your budget, with a month-end projection.' },
-  { route: '/spending', sel: '.topbar [data-quick-add], [data-tour=add]', title: 'Log an expense in seconds', text: 'Amount, category, done — from any page with this button or the <kbd>N</kbd> key. Optionally pick the account it was paid from and take it off that balance.' },
-  { route: '/spending/recurring', sel: '#main .tabs', title: 'Subscriptions & bills', text: 'Each subscription with the day it\'s charged and the account it comes from — added automatically, with monthly and yearly totals.' },
+  { title: 'Welcome to Journal', text: 'A private tracker for <b>what you own</b>, <b>where your money goes</b> and a short daily journal. This tour uses <b>sample data</b> so every chart has something in it; it\'s deleted when the tour ends.' },
+  { route: '/', sel: '[data-tour=nw-stats]', title: 'Your money at a glance', text: 'Net worth and how it changed, what you could reach within days (liquid net worth) and an estimate of the interest your accounts earn.' },
+  { route: '/', sel: '[data-tour=nw-chart]', title: 'Updates build the trend', text: 'Each time you update a balance, that day is kept as history and the line grows. Every few weeks or monthly is plenty.' },
+  { route: '/networth/accounts', sel: '.acct-group', up: null, title: 'Accounts & holdings', text: 'Everything you own and owe, grouped by type. Each account keeps its own currency; crypto and stocks can list holdings with live prices.' },
+  { route: '/networth/accounts', sel: '[data-upd]', title: 'Update a balance', text: '<b>Update</b> records today\'s value and keeps the old one as history. <b>Edit</b> changes the account itself (name, type, APY). <b>Update all</b> does every account at once.' },
+  { route: '/networth', sel: '[data-tour=interest]', title: 'Interest — estimated', text: 'What your accounts would earn per day, month and year at their APY, and what your debts cost. Balances never change on their own — you update them.' },
+  { route: '/networth/analytics', sel: '[data-tour=health]', title: 'Analytics', text: 'Where your money is held, what it\'s for, how liquid and concentrated it is, and your target allocation.' },
+  { route: '/spending', sel: '#s-pace', up: '.card', title: 'Spending, month by month', text: 'Spending through the month vs last month and your budget. A month-end projection appears from day 7.' },
+  { route: '/spending', sel: '.topbar [data-quick-add], [data-tour=add]', title: 'Log an expense in seconds', text: 'Amount, category, done — from any page with this button or the <kbd>N</kbd> key. Optionally take it off the account it was paid from.' },
+  { route: '/spending/recurring', sel: '#main .tabs', title: 'Subscriptions & bills', text: 'Each subscription with the day it\'s charged — added automatically, with monthly and yearly totals.' },
   { route: '/journal', sel: '#jf fieldset', title: 'Journal', text: 'A two-minute daily check-in: mood, energy, stress, sleep, habits and what\'s on your mind.' },
-  { route: '/journal/insights', sel: '[data-tour=mood-spend]', title: 'How you feel vs what you spend', text: 'Insights compares your everyday spending on good and bad days, calm and stressed days — emotional spending shows up here.' },
-  { route: '/settings', sel: '[data-act=export]', title: 'Back up', text: 'Your data lives only in this browser. Export a password-protected backup regularly — you\'ll get a weekly reminder.' },
-  { sel: '[data-tour=help]', title: 'Help any time', text: 'Press <b>?</b> for help about the page you\'re on. Every field has its own <b>?</b> too. That\'s it — the sample data is removed when you click Done.' },
+  { route: '/journal/insights', sel: '[data-tour=mood-spend]', title: 'How you feel vs what you spend', text: 'Compares your everyday spending on good and bad days, calm and stressed days.' },
+  { route: '/settings', sel: '[data-act=export]', title: 'Back up', text: 'Your data lives only in this browser. Export a password-protected backup now and then.' },
+  { sel: '[data-tour=help]', title: 'Help any time', text: 'Press <b>?</b> for help about the page you\'re on. That\'s it — the sample data is removed when you click Done.' },
 ];
 
 let tourEl = null, step = 0, withDemo = false, token = 0;
-const hasOwnData = () => ['nwAccounts', 'txns', 'recurring', 'nwSnapshots', 'nwMoves', 'days'].some(c => store.all(c).some(x => !x.demo));
+const hasOwnData = () => ['nwAccounts', 'txns', 'recurring', 'nwSnapshots', 'nwFlows', 'days'].some(c => store.all(c).some(x => !x.demo));
 
 export async function startTour({ demo = true } = {}) {
   await endTour({ silent: true });
@@ -105,8 +104,4 @@ export async function endTour({ silent = false } = {}) {
 export async function cleanupTourDemo() {
   if (store.getSettings().tourDemo && !tourEl) { await removeDemo(); await store.saveSettings({ tourDemo: false }); return true; }
   return false;
-}
-export function maybeStartTour() {
-  const s = store.getSettings();
-  if (!s.tour?.done && !hasOwnData() && currentPath() !== '/setup') setTimeout(() => startTour(), 400);
 }

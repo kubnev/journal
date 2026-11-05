@@ -1,7 +1,7 @@
 // Net worth calculations. Pure functions over the store.
 import { all, getSettings } from '../store.js';
 import { toDisplay, ccyOf } from '../fx.js';
-import { today, monthKey, parseDay } from '../ui.js';
+import { today, dayKey, parseDay } from '../ui.js';
 
 // Display order: savings → investments → trading → things you own → cash (debts last).
 // ci = fixed colour slot, so a category keeps its colour whatever the order.
@@ -82,33 +82,19 @@ export function tierOf(a) {
 
 const sortedSnaps = () => [...all('nwSnapshots')].sort((a, b) => a.date.localeCompare(b.date));
 
-// Value of one account on a date (carry-forward of the latest snapshot on/before the date)
+// Value of one account on a date: the latest balance you recorded on or before that date.
+// Nothing grows on its own — interest only shows up when you update the balance.
 export function valueAt(acct, date, snaps = sortedSnaps()) {
   if (acct.archivedAt && date >= acct.archivedAt) return 0;
-  let v = null, from = null;
-  for (const s of snaps) { if (s.date > date) break; if (s.balances && acct.id in s.balances && s.balances[acct.id] !== null && s.balances[acct.id] !== '') { v = +s.balances[acct.id]; from = s.date; } }
-  // Fixed-yield accounts (savings, money-market funds, staking) grow daily from the last recorded balance
-  if (v != null && +acct.apy > 0 && acct.kind !== 'liability' && from < date) v = grow(v, +acct.apy, (parseDay(date) - parseDay(from)) / 864e5);
+  let v = null;
+  for (const s of snaps) { if (s.date > date) break; if (s.balances && acct.id in s.balances && s.balances[acct.id] !== null && s.balances[acct.id] !== '') v = +s.balances[acct.id]; }
   return v ?? 0;
 }
-// APY is the effective annual yield, so growth over d days is (1 + APY)^(d/365)
-export const grow = (v, apy, days) => v * Math.pow(1 + apy / 100, days / 365);
-
-// Value right now, to the second — for the live earnings ticker
-export function liveValue(acct, now = new Date()) {
-  const snaps = sortedSnaps();
-  let v = null, from = null;
-  for (const s of snaps) if (s.balances && acct.id in s.balances && s.balances[acct.id] !== '' && s.balances[acct.id] != null && s.date <= today()) { v = +s.balances[acct.id]; from = s.date; }
-  if (v == null) return 0;
-  return +acct.apy > 0 ? grow(v, +acct.apy, (now - parseDay(from)) / 864e5) : v;
-}
-export function yieldSummary(now = new Date()) {
-  const accts = all('nwAccounts').filter(a => +a.apy > 0 && a.kind !== 'liability' && !a.archivedAt);
-  let perYear = 0, value = 0;
-  for (const a of accts) { const v = toDisplay(liveValue(a, now), ccyOf(a)); value += v; perYear += v * (a.apy / 100); }
-  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const earnedToday = accts.reduce((s, a) => s + toDisplay(liveValue(a, now) - liveValue(a, midnight), ccyOf(a)), 0);
-  return { accts, value, perYear, perDay: perYear / 365, perMonth: perYear / 12, perSecond: perYear / 365 / 86400, earnedToday, blendedApy: value ? perYear / value : null };
+// date of the latest balance you recorded for an account
+export function lastUpdateOf(acct) {
+  let d = null;
+  for (const s of sortedSnaps()) if (s.date <= today() && s.balances && acct.id in s.balances && s.balances[acct.id] !== '' && s.balances[acct.id] != null) d = s.date;
+  return d;
 }
 
 export function pointAt(date, snaps = sortedSnaps()) {
@@ -134,45 +120,30 @@ export function pointAt(date, snaps = sortedSnaps()) {
   return p;
 }
 
-// One point per snapshot date (plus today if linked accounts move on their own)
+// One point per date you recorded balances
 export function nwSeries() {
-  const snaps = sortedSnaps();
-  const dates = [...new Set(snaps.map(s => s.date))];
   if (!all('nwAccounts').length) return [];
-  if (all('nwAccounts').some(a => +a.apy > 0) && dates.length && dates.at(-1) < today()) dates.push(today());
-  if (!dates.length) return [];
-  return dates.map(d => pointAt(d, snaps));
+  const snaps = sortedSnaps();
+  return [...new Set(snaps.map(s => s.date))].filter(d => d <= today()).map(d => pointAt(d, snaps));
 }
 
-// ---------- spending baseline ----------
-// Monthly spending from the Spending section (display currency)
-export function spendMonths() {
-  const m = new Map();
-  for (const t of all('txns')) {
-    if (t.exclude || !t.date || t.type === 'income') continue;
-    const k = t.date.slice(0, 7);
-    m.set(k, (m.get(k) || 0) + toDisplay(+t.amount || 0, ccyOf(t), t.date));
-  }
-  return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([id, expenses]) => ({ id, expenses }));
+// ---------- usual spending ----------
+// Your usual monthly spending, from what you've actually logged: everything over the last 90 days
+// (or since your first expense) scaled to an average month. Needs at least a week of logging;
+// before that there's no number at all.
+export const MIN_DAYS = 7;
+export function baseline() {
+  const t = today();
+  const ex = all('txns').filter(x => !x.exclude && x.date && x.type !== 'income' && x.date <= t);
+  const first = ex.map(x => x.date).sort()[0];
+  const days = first ? Math.round((parseDay(t) - parseDay(first)) / 864e5) + 1 : 0;
+  if (days < MIN_DAYS) return { avgExpenses: null, days, enough: false };
+  const span = Math.min(days, 90);
+  const from = new Date(parseDay(t).getTime() - (span - 1) * 864e5);
+  const fromKey = dayKey(from);
+  const total = ex.filter(x => x.date >= fromKey).reduce((a, x) => a + toDisplay(+x.amount || 0, ccyOf(x), x.date), 0);
+  return { avgExpenses: (total / span) * (365 / 12), days, enough: true };
 }
-
-// ---------- starting estimates ----------
-// Your usual monthly spending: the average over complete calendar months after the month you
-// started logging (the first, usually partial, month and the month in progress are left out).
-// Until there's MIN_MONTHS of that, your starting estimate is used instead.
-export const MIN_MONTHS = 1;
-export const estimates = () => getSettings().estimates || {};
-const estMoney = k => { const e = estimates(); return +e[k] > 0 ? toDisplay(+e[k], e.currency || 'USD') : null; };
-export function baseline(n = 12) {
-  const cur = today().slice(0, 7), months = spendMonths(), first = months[0]?.id;
-  const m = months.filter(x => x.id < cur && x.id > first).slice(-n);
-  const real = m.length >= MIN_MONTHS;
-  const est = real ? null : estMoney('spending');
-  const avgExpenses = real ? m.reduce((a, x) => a + x.expenses, 0) / m.length : est;
-  return { realMonths: m.length, avgExpenses, estimated: { spending: est != null }, isEstimate: est != null };
-}
-// net worth about a year ago: real snapshot history first, otherwise the estimate
-export function yearAgoEstimate() { const e = estimates(), v = e.nwYearAgo; return v === '' || v == null || !isFinite(+v) ? null : toDisplay(+v, e.currency || 'USD'); }
 
 // change in net worth between consecutive balance updates
 export function changes(series) {
@@ -181,52 +152,27 @@ export function changes(series) {
   return out;
 }
 
-// ---------- interest ----------
-// APY in force on a date. Each APY change is kept in apyHistory ({ from, apy }), so earlier
-// periods are credited at the rate that applied then.
-export function apyAt(a, date) {
-  const h = [...(a.apyHistory || [])].sort((x, y) => x.from.localeCompare(y.from));
-  if (!h.length) return +a.apy || 0;
-  const e = h.filter(x => x.from <= date).at(-1) || h[0];
-  return +e.apy || 0;
-}
-const daysBetween = (a, b) => (parseDay(b) - parseDay(a)) / 864e5;
-// Interest an account has earned (estimate): between balance updates the recorded balance grows at
-// the APY in force; a new update starts again from what you typed. In the account's own currency.
-export function interestEarned(a, { to = today(), yearStart = `${to.slice(0, 4)}-01-01` } = {}) {
-  const pts = sortedSnaps().filter(s => s.date <= to && s.balances && a.id in s.balances && s.balances[a.id] !== '' && s.balances[a.id] != null).map(s => ({ date: s.date, v: +s.balances[a.id] }));
-  let total = 0, ytd = 0, sinceUpdate = 0;
-  pts.forEach((p, i) => {
-    const end = i + 1 < pts.length ? pts[i + 1].date : to;
-    const r = apyAt(a, p.date);
-    if (!(r > 0) || end <= p.date) return;
-    const earned = grow(p.v, r, daysBetween(p.date, end)) - p.v;
-    total += earned;
-    if (end > yearStart) { const from = p.date > yearStart ? p.date : yearStart; ytd += grow(p.v, r, daysBetween(p.date, end)) - grow(p.v, r, daysBetween(p.date, from)); }
-    if (i === pts.length - 1) sinceUpdate = earned;
-  });
-  return { total, ytd, sinceUpdate, lastUpdate: pts.at(-1)?.date || null, since: pts[0]?.date || null };
-}
-// Interest you earn (yield accounts) and pay (debts with an APR), in the display currency
+// ---------- interest (estimates) ----------
+// What each account would earn at its APY (and each debt costs at its APR), at today's recorded
+// balance. These are estimates for reference only — balances never change on their own.
 export function interestOverview() {
   const accts = all('nwAccounts').filter(a => !a.archivedAt);
-  const earn = accts.filter(a => a.kind !== 'liability' && +a.apy > 0).map(a => {
-    const native = liveValue(a), value = toDisplay(native, ccyOf(a)), apy = +a.apy;
-    const e = interestEarned(a);
-    return { a, native, value, apy, perYear: value * apy / 100, perMonth: value * apy / 1200, perDay: value * apy / 36500,
-      sinceUpdate: toDisplay(e.sinceUpdate, ccyOf(a)), ytd: toDisplay(e.ytd, ccyOf(a)), total: toDisplay(e.total, ccyOf(a)), lastUpdate: e.lastUpdate, since: e.since };
-  }).sort((x, y) => y.perYear - x.perYear);
   const now = pointAt(today());
+  const earn = accts.filter(a => a.kind !== 'liability' && +a.apy > 0).map(a => {
+    const value = now.byAcct[a.id] || 0, apy = +a.apy, last = lastUpdateOf(a);
+    const days = last ? Math.max(0, (parseDay(today()) - parseDay(last)) / 864e5) : 0;
+    return { a, native: now.byAcctNative[a.id] || 0, value, apy, perYear: value * apy / 100, perMonth: value * apy / 1200, perDay: value * apy / 36500, sinceUpdate: value * (Math.pow(1 + apy / 100, days / 365) - 1), lastUpdate: last };
+  }).filter(x => x.value > 0).sort((x, y) => y.perYear - x.perYear);
   const pay = accts.filter(a => a.kind === 'liability' && +a.rate > 0).map(a => {
     const owed = now.byAcct[a.id] || 0, rate = +a.rate;
     return { a, owed, rate, perYear: owed * rate / 100, perMonth: owed * rate / 1200 };
   }).filter(x => x.owed > 0).sort((x, y) => y.perYear - x.perYear);
-  // money not earning anything: liquid assets with no APY (cash, savings, idle exchange balances)
+  // cash & savings earning nothing
   const idle = accts.filter(a => a.kind !== 'liability' && !(+a.apy > 0) && ['cash', 'savings'].includes(a.category)).map(a => ({ a, value: now.byAcct[a.id] || 0 })).filter(x => x.value > 0).sort((x, y) => y.value - x.value);
   const sum = (l, k) => l.reduce((s, x) => s + x[k], 0);
   const earnValue = sum(earn, 'value');
-  return { earn, pay, idle, earnValue, earnYear: sum(earn, 'perYear'), earnMonth: sum(earn, 'perMonth'), payYear: sum(pay, 'perYear'), payMonth: sum(pay, 'perMonth'),
-    ytd: sum(earn, 'ytd'), total: sum(earn, 'total'), sinceUpdate: sum(earn, 'sinceUpdate'), blended: earnValue ? sum(earn, 'perYear') / earnValue : null, idleValue: sum(idle, 'value') };
+  return { earn, pay, idle, earnValue, earnYear: sum(earn, 'perYear'), earnMonth: sum(earn, 'perMonth'), earnDay: sum(earn, 'perDay'), payYear: sum(pay, 'perYear'), payMonth: sum(pay, 'perMonth'),
+    sinceUpdate: sum(earn, 'sinceUpdate'), blended: earnValue ? sum(earn, 'perYear') / earnValue : null, idleValue: sum(idle, 'value') };
 }
 
 export function debtMetrics(point) {

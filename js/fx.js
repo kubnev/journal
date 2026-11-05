@@ -5,14 +5,14 @@
 import * as store from './store.js';
 import { maskMoney } from './ui.js';
 
-export const CURRENCIES = ['USD', 'EUR', 'GBP', 'BGN', 'CHF', 'JPY', 'CAD', 'AUD', 'NZD', 'SEK', 'NOK', 'DKK', 'PLN', 'CZK', 'RON', 'HUF', 'TRY', 'INR', 'SGD', 'HKD', 'CNY', 'ZAR', 'BRL', 'MXN', 'AED', 'USDT'];
+export const CURRENCIES = ['USD', 'EUR', 'GBP', 'CHF', 'JPY', 'CAD', 'AUD', 'NZD', 'SEK', 'NOK', 'DKK', 'PLN', 'CZK', 'RON', 'HUF', 'TRY', 'INR', 'SGD', 'HKD', 'CNY', 'ZAR', 'BRL', 'MXN', 'AED', 'SAR', 'USDT'];
 const USD_LIKE = new Set(['USD', 'USDT']);
 // Currencies the ECB publishes (Frankfurter rejects a request that names any other symbol)
 const ECB = new Set(['EUR', 'GBP', 'CHF', 'JPY', 'CAD', 'AUD', 'NZD', 'SEK', 'NOK', 'DKK', 'PLN', 'CZK', 'RON', 'HUF', 'TRY', 'INR', 'SGD', 'HKD', 'CNY', 'ZAR', 'BRL', 'MXN']);
-// The Bulgarian lev was fixed to the euro until it was replaced by it; derive it from EUR
-const BGN_PER_EUR = 1.95583;
+// Currencies held at a fixed rate to another one: [anchor, units per 1 anchor]
+export const PEGGED = { AED: ['USD', 3.6725], SAR: ['USD', 3.75], BGN: ['EUR', 1.95583] };
 // Approximate units-per-USD, used only until real rates have been fetched once (flagged in the UI).
-const FALLBACK = { EUR: 0.92, GBP: 0.78, BGN: 1.8, CHF: 0.86, JPY: 148, CAD: 1.36, AUD: 1.5, NZD: 1.65, SEK: 10.5, NOK: 10.6, DKK: 6.85, PLN: 3.95, CZK: 23, RON: 4.6, HUF: 360, TRY: 34, INR: 84, SGD: 1.33, HKD: 7.8, CNY: 7.2, ZAR: 18, BRL: 5.4, MXN: 18.5, AED: 3.6725 };
+const FALLBACK = { EUR: 0.92, GBP: 0.78, CHF: 0.86, JPY: 148, CAD: 1.36, AUD: 1.5, NZD: 1.65, SEK: 10.5, NOK: 10.6, DKK: 6.85, PLN: 3.95, CZK: 23, RON: 4.6, HUF: 360, TRY: 34, INR: 84, SGD: 1.33, HKD: 7.8, CNY: 7.2, ZAR: 18, BRL: 5.4, MXN: 18.5, AED: 3.6725 };
 
 const fxState = () => store.getSettings().fx || { latest: null, at: null, history: {} };
 export const displayCcy = () => store.getSettings().currency || 'USD';
@@ -30,7 +30,7 @@ function keys() {
 // units of `cur` per 1 USD on `date` (nearest earlier ECB day), else latest, else fallback
 export function rate(cur, date) {
   if (!cur || USD_LIKE.has(cur)) return 1;
-  if (cur === 'BGN') return rate('EUR', date) * BGN_PER_EUR;
+  if (PEGGED[cur]) return rate(PEGGED[cur][0], date) * PEGGED[cur][1];
   const st = fxState();
   if (date && st.history) {
     const ks = keys();
@@ -60,7 +60,7 @@ export function currenciesInUse() {
   const s = new Set([displayCcy()]);
   for (const c of ['nwAccounts', 'txns', 'recurring']) for (const x of store.all(c)) if (x.currency) s.add(x.currency);
   if (store.getSettings().plan?.currency) s.add(store.getSettings().plan.currency);
-  if (s.has('BGN')) { s.delete('BGN'); s.add('EUR'); }
+  for (const c of [...s]) if (PEGGED[c]) { s.delete(c); s.add(PEGGED[c][0]); }
   return [...s].filter(c => !USD_LIKE.has(c));
 }
 const earliestDate = () => {
@@ -136,7 +136,7 @@ export function moneyIn(v, cur, { sign = false } = {}) {
   const s = nfs.get(k).format(Math.abs(v)) + (cur === 'USDT' ? ' ₮' : '');
   return v < 0 ? '−' + s : (sign && v > 0 ? '+' : '') + s;
 }
-export const ccySelect = (name, cur) => `<select name="${name}">${CURRENCIES.map(c => `<option ${c === cur ? 'selected' : ''}>${c}</option>`).join('')}</select>`;
+export const ccySelect = (name, cur) => `<select name="${name}">${[...CURRENCIES, ...(cur && !CURRENCIES.includes(cur) ? [cur] : [])].map(c => `<option ${c === cur ? 'selected' : ''}>${c}</option>`).join('')}</select>`;
 
 // One-time: tag existing records with the currency they were entered in (the display currency at the time)
 export async function migrateCurrencies() {

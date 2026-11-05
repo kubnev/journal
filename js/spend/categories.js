@@ -20,29 +20,18 @@ export const EXPENSE_DEFAULTS = [
   { id: 'fees', name: 'Taxes & fees', emoji: '🧾', kind: 'need', subs: ['Taxes', 'Bank fees', 'Fines', 'Insurance (other)'] },
   { id: 'other', name: 'Other', emoji: '📦', kind: 'want', subs: [] },
 ];
-export const INCOME_CATS = [
-  { id: 'salary', name: 'Salary', emoji: '💼', income: true },
-  { id: 'side', name: 'Side income / freelance', emoji: '💻', income: true },
-  { id: 'trading-income', name: 'Trading profits withdrawn', emoji: '📈', income: true },
-  { id: 'investment-income', name: 'Interest & dividends', emoji: '🏦', income: true },
-  { id: 'gift-income', name: 'Gifts received', emoji: '🎀', income: true },
-  { id: 'refund', name: 'Refunds', emoji: '↩️', income: true },
-  { id: 'other-income', name: 'Other income', emoji: '💰', income: true },
-];
 export const KINDS = { need: 'Need', want: 'Want' };
 
 export const expenseCats = () => getSettings().categories || EXPENSE_DEFAULTS;
-export const incomeCats = () => INCOME_CATS;
-export const catsFor = type => (type === 'income' ? incomeCats() : expenseCats());
 const UNKNOWN = { id: '?', name: 'Uncategorised', emoji: '❔', kind: 'want', subs: [] };
-export const catById = id => expenseCats().find(c => c.id === id) || INCOME_CATS.find(c => c.id === id) || { ...UNKNOWN, id: id || '?', name: id ? `${id} (deleted category)` : 'Uncategorised' };
-export const catName = id => catById(id).name;
-export const catEmoji = id => catById(id).emoji || '•';
+export const catById = id => expenseCats().find(c => c.id === id) || { ...UNKNOWN, id: id || '?', name: id ? `${id} (deleted category)` : 'Uncategorised' };
+const catName = id => catById(id).name;
+const catEmoji = id => catById(id).emoji || '•';
 export const catLabel = id => `${catEmoji(id)} ${catName(id)}`;
 
 // stable colour per category from the chart palette
 export const catColor = (id, palette) => {
-  const list = [...expenseCats(), ...INCOME_CATS];
+  const list = expenseCats();
   const i = list.findIndex(c => c.id === id);
   return palette.series[(i < 0 ? 7 : i) % palette.series.length];
 };

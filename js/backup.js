@@ -3,12 +3,11 @@ import * as store from './store.js';
 import { modal, toast, download, readFileText, confirmDlg, esc, today } from './ui.js';
 import { encryptBackup, decryptBackup, isEncrypted } from './crypto.js';
 import { migrateCurrencies, refreshRates } from './fx.js';
-import { migrateLegacy } from './migrate.js';
 
 const MIN_LEN = 8;
 
 // Ask for a password, encrypt, download. Returns true when a file was saved.
-export async function exportBackupFlow({ includeImages = true } = {}) {
+export async function exportBackupFlow() {
   const res = await modal({
     title: 'Export backup',
     body: `<form id="bk" class="stack" autocomplete="off">
@@ -33,12 +32,12 @@ export async function exportBackupFlow({ includeImages = true } = {}) {
     } }],
   });
   if (!res || typeof res !== 'object') return false;
-  const data = await store.exportBackup({ includeImages });
-  let out = data, name = `ledgerline-backup-${today()}.json`;
+  const data = store.exportBackup();
+  let out = data, name = `journal-backup-${today()}.json`;
   if (!res.plain) {
     toast('Encrypting…');
     out = await encryptBackup(data, res.pw);
-    name = `ledgerline-backup-${today()}-encrypted.json`;
+    name = `journal-backup-${today()}-encrypted.json`;
   }
   download(name, JSON.stringify(out));
   await store.saveSettings({ lastBackupAt: new Date().toISOString() });
@@ -78,7 +77,7 @@ export async function importBackupFlow(file) {
   });
   if (mode !== 'merge' && mode !== 'replace') return false;
   if (mode === 'replace' && !(await confirmDlg('Replace all data?', 'Current data in this browser will be deleted and replaced by the backup.', 'Replace'))) return false;
-  try { await store.importBackup(obj, { mode }); const arr = v => (Array.isArray(v) ? v.filter(x => x && typeof x === 'object') : []); await migrateLegacy({ tAccounts: arr(obj.data.tAccounts), tTransfers: arr(obj.data.tTransfers), trades: arr(obj.data.trades) }); await migrateCurrencies(); }
+  try { await store.importBackup(obj, { mode }); await migrateCurrencies(); }
   catch (err) { toast(err.message, 'error'); return false; }
   toast('Backup restored');
   refreshRates().catch(() => {});

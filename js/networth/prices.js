@@ -5,6 +5,7 @@
 //   FX     : Frankfurter (ECB rates) → Coinbase exchange rates as fallback
 import * as store from '../store.js';
 import { today } from '../ui.js';
+import { PEGGED } from '../fx.js';
 
 const STABLES = new Set(['USDT', 'USDC', 'DAI', 'FDUSD', 'TUSD', 'BUSD', 'USDP', 'PYUSD', 'USDE']);
 const TIMEOUT = 12000;
@@ -65,7 +66,7 @@ export async function stockPricesUSD(symbols, apiKey) {
 export async function usdTo(cur) {
   cur = (cur || 'USD').toUpperCase();
   if (cur === 'USD' || cur === 'USDT') return 1;
-  if (cur === 'BGN') return (await usdTo('EUR')) * 1.95583; // fixed to the euro
+  if (PEGGED[cur]) return (await usdTo(PEGGED[cur][0])) * PEGGED[cur][1];
   try { const j = await getJSON(`https://api.frankfurter.dev/v1/latest?base=USD&symbols=${cur}`); if (+j?.rates?.[cur] > 0) return +j.rates[cur]; } catch {}
   try { const j = await getJSON('https://api.coinbase.com/v2/exchange-rates?currency=USD'); if (+j?.data?.rates?.[cur] > 0) return +j.data.rates[cur]; } catch {}
   throw new Error(`Couldn't get the USD → ${cur} exchange rate`);

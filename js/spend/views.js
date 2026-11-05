@@ -1,13 +1,12 @@
 // Spending: dashboard, transactions, calendar, budgets, bills & subscriptions, categories.
 import * as store from '../store.js';
-import { html, raw, money, pct, num, pnlClass, stat, fmtDate, fmtMonth, today, modal, toast, confirmDlg, formData, toNum, parseDay, pad, estTag } from '../ui.js';
+import { html, raw, money, pct, num, stat, fmtDate, fmtMonth, today, modal, toast, confirmDlg, formData, toNum, parseDay, pad } from '../ui.js';
 import * as C from '../charts.js';
 import { ccySelect, displayCcy, ccyOf, moneyIn, sameMoney } from '../fx.js';
-import { expenseCats, catById, catLabel, catColor, kindOf, KINDS, saveCategories, slug, EXPENSE_DEFAULTS } from './categories.js';
+import { expenseCats, catById, catLabel, catColor, KINDS, saveCategories, slug, EXPENSE_DEFAULTS } from './categories.js';
 import * as S from './calc.js';
 import { txnModal } from './txn.js';
 import { importTxnsDialog, exportTxnsCSV } from './csv.js';
-import { loadDemo } from '../demo.js';
 import { refresh, query, go } from '../main.js';
 import { simpleMode, baseline } from '../networth/calc.js';
 import { applyTxnDeduction, adjustable } from '../networth/ledger.js';
@@ -19,12 +18,11 @@ export const fmtMonthLong = m => parseDay(m + '-01').toLocaleDateString(store.ge
 const addBtn = (label = '+ Add transaction') => html`<button class="btn primary" data-add>${label}</button>`;
 const wireAdd = (el, opts) => el.querySelectorAll('[data-add]').forEach(b => b.onclick = async () => { if (await txnModal({}, opts?.())) refresh(); });
 const emptySpend = () => html`<div class="empty"><div class="empty-title">No transactions yet</div>
-  <p>Log what you spend — it takes a few seconds. Press <kbd>N</kbd> anywhere to add one. You can also import a CSV from your bank, or load demo data to explore every chart.</p>
-  <button class="btn primary" data-add>+ Add your first expense</button><button class="btn" data-import>Import bank CSV</button><button class="btn" data-demo>Load demo data</button></div>`;
+  <p>Log what you spend — it takes a few seconds. Press <kbd>N</kbd> anywhere to add one. You can also import a CSV from your bank.</p>
+  <button class="btn primary" data-add>+ Add your first expense</button><button class="btn" data-import>Import bank CSV</button></div>`;
 const wireEmpty = el => {
   wireAdd(el);
   el.querySelector('[data-import]')?.addEventListener('click', async () => { if (await importTxnsDialog()) refresh(); });
-  el.querySelector('[data-demo]')?.addEventListener('click', async () => { await loadDemo(); refresh(); });
 };
 // subtitle: category · subcategory · merchant · method … without repeating the title or itself
 const txnMeta = t => {
@@ -34,11 +32,6 @@ const txnMeta = t => {
     .filter(x => x && !seen.has(x.toLowerCase()) && seen.add(x.toLowerCase())).join(' · ');
 };
 const amt = t => html`<span>${moneyIn(-t.amount, ccyOf(t))}</span>`;
-// income entries from older versions: not shown or counted any more, but can be deleted
-const legacyIncome = () => store.all('txns').filter(t => t.type === 'income');
-const legacyNote = () => { const n = legacyIncome().length; return n ? html`<div class="note mt">${n} income entr${n === 1 ? 'y' : 'ies'} from an older version ${n === 1 ? 'is' : 'are'} hidden — income isn't tracked any more. <button class="btn sm" data-del-income>Delete ${n === 1 ? 'it' : 'them'}</button></div>` : ''; };
-const wireLegacy = el => el.querySelector('[data-del-income]')?.addEventListener('click', async () => { const n = legacyIncome().length; if (!(await confirmDlg('Delete old income entries?', `Delete ${n} income entr${n === 1 ? 'y' : 'ies'}? Expenses are not touched.`))) return; await store.delWhere('txns', t => t.type === 'income'); await store.delWhere('recurring', r => r.type === 'income'); toast('Old income entries deleted'); refresh(); });
-
 // ================= dashboard =================
 export async function dashboard(el) {
   const m = monthParam();
@@ -59,7 +52,7 @@ export async function dashboard(el) {
   const histAvg = hist.length ? hist.reduce((a, x) => a + x.spent, 0) / hist.length : 0;
   const isCur = m === S.currentMonth();
   const up = isCur ? S.upcoming(null, 14).filter(u => u.date >= today()) : [];
-  const base = s.usualSpending, baseEst = baseline().isEstimate;
+  const base = s.usualSpending;
   const merchants = S.byKey(s.ex, 'merchant').slice(0, 6);
   const biggest = [...s.ex].sort((a, b2) => S.val(b2) - S.val(a)).slice(0, 6);
   // everyday spending by weekday (bills left out — rent on the 1st would skew whichever weekday it fell on)
@@ -71,10 +64,10 @@ export async function dashboard(el) {
   body.innerHTML = String(html`
     <div class="stats big">
       ${stat(isCur ? 'Spent this month' : 'Spent', money(s.spent), { sub: vsPrev != null ? html`<span class="${vsPrev > 0 ? 'neg' : 'pos'}">${pct(vsPrev, 0, { sign: true })}</span> vs ${fmtMonth(prevM)}${isCur ? ' at this point' : ''}` : `${s.count} transactions` })}
-      ${stat(html`Usual month${estTag(baseEst, 'your estimated monthly spending')}`, base != null ? money(base) : '—', { sub: base != null ? (isCur && s.spent ? `${pct(s.spent / base, 0)} of it spent so far` : 'average of your complete months') : html`add an <a href="#/setup">estimate</a>`, help: 'Your average monthly spending over your complete months (up to 12), or your starting estimate until you have a full month.' })}
+      ${stat('Usual month', base != null ? money(base) : '—', { sub: base != null ? (isCur && s.spent ? `${pct(s.spent / base, 0)} of it spent so far` : 'from your last 90 days') : 'needs a week of logged spending', help: 'Your average spending per month, worked out from what you logged over the last 90 days (at least a week of it).' })}
       ${b.total ? stat(s.left < 0 ? 'Over budget by' : isCur ? 'Left in budget' : 'Under budget by', money(Math.abs(s.left)), { cls: s.left < 0 ? 'neg' : 'pos', sub: isCur && s.safeToday != null ? html`<b>${money(s.safeToday)}</b> safe to spend per day` : `of ${money(b.total)}`, help: 'Safe to spend per day = budget left, minus bills still due this month, divided by the days left.' })
                 : stat('Daily average', money(s.avgDay), { sub: html`<a href="#/spending/budgets">set a budget</a> to get a daily limit` })}
-      ${stat(isCur ? html`Projected month-end${estTag(s.projectionUsesEstimate, 'your estimated monthly spending (used until day 10 of the month)')}` : 'Daily average', isCur ? money(s.projected) : money(s.avgDay), { cls: isCur && b.total && s.projected > b.total ? 'neg' : '', sub: isCur ? (b.total ? (s.projected > b.total ? `${money(s.projected - b.total)} over budget at this pace` : 'within budget at this pace') : 'at your current pace + bills due') : `${s.noSpend} no-spend days`, help: 'Your spending so far, plus your average daily spend for the days left, plus recurring bills still due this month.' })}
+      ${stat(isCur ? 'Projected month-end' : 'Daily average', isCur ? (s.projected != null ? money(s.projected) : '—') : money(s.avgDay), { cls: isCur && b.total && s.projected > b.total ? 'neg' : '', sub: isCur ? (s.projected == null ? 'not enough data — from day 7 of the month' : b.total ? (s.projected > b.total ? `${money(s.projected - b.total)} over budget at this pace` : 'within budget at this pace') : 'at your current pace + bills due') : `${s.noSpend} no-spend days`, help: 'Your spending so far, plus your average daily spend for the days left, plus recurring bills still due this month.' })}
       ${stat('No-spend days', `${s.noSpend}`, { sub: `of ${s.dayNow || s.n} days${isCur ? ' so far' : ''}`, help: 'Days with no expenses logged. A simple streak to aim for.' })}
     </div>
     <div class="grid g-2-1 mt">
@@ -101,8 +94,7 @@ export async function dashboard(el) {
     </div>
     ${up.length ? html`<div class="card mt"><div class="card-head"><h2>Coming up</h2><a class="hint" href="#/spending/recurring">Subscriptions & bills →</a></div>
       <div class="upcoming">${up.slice(0, 8).map(u => html`<div class="up-item"><span class="muted small">${fmtDate(u.date, { weekday: 'short', month: 'short', day: 'numeric' })}</span><span>${catLabel(u.r.category).split(' ')[0]} ${u.r.name}</span><b>${money(u.value)}</b></div>`)}</div></div>` : ''}
-    ${legacyNote()}`);
-  wireLegacy(body);
+    `);
   body.querySelectorAll('tr[data-href]').forEach(tr => tr.onclick = () => { location.hash = tr.dataset.href; });
   wireSubs(body);
 
@@ -162,14 +154,12 @@ export async function transactions(el) {
     <div class="stats">${stat('Spent', money(out), { sub: `${allTime ? 'all time' : fmtMonth(m)}${f.cat || f.text || f.method ? ' · filtered' : ''}` })}
       ${stat('Expenses', String(counted.length), { sub: counted.length ? `avg ${money(out / counted.length)}` : '' })}
       ${stat('Paid from tracked accounts', money(S.sum(fromAcct)), { sub: `${fromAcct.length} of ${counted.length} expenses`, help: 'Expenses saved with “Take it off this account’s balance” — they lowered that account’s balance in Net worth.' })}</div>
-    ${legacyNote()}
     ${list.length ? html`<div class="txn-list mt">${days.map(d => { const dayOut = S.sum(d.items.filter(t => !t.exclude)); return html`<div class="txn-day"><div class="txn-day-head"><span>${fmtDate(d.date, { weekday: 'long', month: 'short', day: 'numeric', ...(allTime ? { year: 'numeric' } : {}) })}</span><span class="muted">${dayOut ? money(-dayOut) : ''}</span></div>
       ${d.items.map(t => html`<button class="txn" data-id="${t.id}"><span class="txn-ic" style="background:${C.alpha(catColor(t.category, C.palette()), 0.16)}">${catById(t.category).emoji || '•'}</span>
         <span class="txn-main"><b>${t.note || t.merchant || catById(t.category).name}</b><span class="small muted">${txnMeta(t)}</span></span>
         <span class="txn-amt">${amt(t)}${!sameMoney(ccyOf(t), displayCcy()) ? html`<span class="small muted">≈ ${money(-S.val(t))}</span>` : ''}</span></button>`)}</div>`; })}</div>
       ${list.length > showN ? html`<div class="row mt"><span class="spacer"></span><button class="btn" data-more>Show more (${list.length - showN} left)</button></div>` : ''}`
       : html`<div class="empty"><div class="empty-title">Nothing here</div><p>No expenses match${allTime ? '' : ` in ${fmtMonthLong(m)}`}.</p>${addBtn()}</div>`}`);
-  wireLegacy(body);
   wireAdd(body, () => ({ date: !allTime && m !== S.currentMonth() ? `${m}-01` : undefined }));
   body.querySelectorAll('.txn').forEach(b => b.onclick = async () => { if (await txnModal(store.get('txns', b.dataset.id))) refresh(); });
   body.querySelector('[data-more]')?.addEventListener('click', () => { showN += 300; refresh(); });
@@ -227,7 +217,7 @@ export async function budgets(el) {
   const expectNow = b.total ? b.total * (s.dayNow / s.n) : null;
   const hist = S.monthsBack(m, 6);
   el.innerHTML = String(html`<div class="page-head"><div><h1>Budgets</h1><div class="sub">A monthly limit overall and per category. Amounts in ${displayCcy()}.</div></div></div>
-    ${b.total ? html`<div class="stats big">${stat(fmtMonthLong(m), money(s.spent), { sub: `of ${money(b.total)} budget` })}${stat(s.left < 0 ? 'Over budget by' : 'Left', money(Math.abs(s.left)), { cls: s.left < 0 ? 'neg' : 'pos' })}${stat('Safe per day', money(s.safeToday), { sub: `${s.daysLeft} days left`, help: 'Budget left, minus recurring bills still due this month, divided by the days left (including today).' })}${stat('Projected month-end', money(s.projected), { cls: s.projected > b.total ? 'neg' : 'pos', sub: s.projected > b.total ? `${money(s.projected - b.total)} over at this pace` : 'within budget at this pace' })}</div>
+    ${b.total ? html`<div class="stats big">${stat(fmtMonthLong(m), money(s.spent), { sub: `of ${money(b.total)} budget` })}${stat(s.left < 0 ? 'Over budget by' : 'Left', money(Math.abs(s.left)), { cls: s.left < 0 ? 'neg' : 'pos' })}${stat('Safe per day', money(s.safeToday), { sub: `${s.daysLeft} days left`, help: 'Budget left, minus recurring bills still due this month, divided by the days left (including today).' })}${s.projected != null ? stat('Projected month-end', money(s.projected), { cls: s.projected > b.total ? 'neg' : 'pos', sub: s.projected > b.total ? `${money(s.projected - b.total)} over at this pace` : 'within budget at this pace' }) : stat('Projected month-end', '—', { sub: 'not enough data — from day 7 of the month' })}</div>
       <div class="card mt"><div class="budget-bar"><span style="width:${Math.min(100, (s.spent / b.total) * 100)}%" class="${s.spent > b.total ? 'over' : s.spent > expectNow ? 'warn' : ''}"></span><i style="left:${(s.dayNow / s.n) * 100}%" title="Where you'd be spending evenly"></i></div>
       <div class="row small muted"><span>${s.spent > expectNow ? `${money(s.spent - expectNow)} ahead of an even pace` : `${money(expectNow - s.spent)} under an even pace`}</span><span class="spacer"></span><span>today = day ${s.dayNow} of ${s.n}</span></div></div>` : html`<div class="note">Set a monthly budget below — the app then shows how much is left, a safe amount to spend per day and whether you're on pace.</div>`}
     <form id="bf" class="card mt"><div class="card-head"><h2>Monthly limits</h2>${avgN ? html`<button type="button" class="btn sm" data-fill>Fill from my ${avgN}-month averages</button>` : ''}</div>

@@ -4,13 +4,13 @@
 import * as store from '../store.js';
 import { html, raw, modal, toast, today, toNum } from '../ui.js';
 import { ccySelect, displayCcy, moneyIn, ccyOf } from '../fx.js';
-import { catsFor, catById, KINDS } from './categories.js';
+import { expenseCats, catById, KINDS } from './categories.js';
 import { FREQS, nextDate } from './calc.js';
 import { simpleMode, valueAt } from '../networth/calc.js';
 import { applyTxnDeduction, reverseTxnDeduction, adjustable } from '../networth/ledger.js';
 
-const lastCcy = () => { try { return localStorage.getItem('tj.lastCcy') || displayCcy(); } catch { return displayCcy(); } };
-const chips = (type, sel) => html`${catsFor('expense').map(c => html`<label class="cat-chip"><input type="radio" name="category" value="${c.id}" ${c.id === sel ? raw('checked') : ''}><span>${c.emoji || '•'} ${c.name}</span></label>`)}`;
+const lastCcy = () => { try { return localStorage.getItem('journal.lastCcy') || displayCcy(); } catch { return displayCcy(); } };
+const chips = (type, sel) => html`${expenseCats().map(c => html`<label class="cat-chip"><input type="radio" name="category" value="${c.id}" ${c.id === sel ? raw('checked') : ''}><span>${c.emoji || '•'} ${c.name}</span></label>`)}`;
 const subOpts = (catId, sel) => html`<option value="">—</option>${[...new Set([...(catById(catId).subs || []), ...(sel ? [sel] : [])])].map(s => html`<option ${s === sel ? raw('selected') : ''}>${s}</option>`)}`;
 
 // returns the saved transaction, 'deleted', or null
@@ -20,9 +20,9 @@ export async function txnModal(t = {}, { date } = {}) {
   const type = 'expense';
   const merchants = [...new Set(store.all('txns').map(x => (x.merchant || '').trim()).filter(Boolean))].slice(0, 200);
   const accts = store.all('nwAccounts').filter(a => !a.archivedAt || a.id === t.accountId).sort((a, b) => (a.kind === 'liability') - (b.kind === 'liability') || a.name.localeCompare(b.name));
-  const lastAcct = (() => { try { return localStorage.getItem('tj.lastAcct') || ''; } catch { return ''; } })();
+  const lastAcct = (() => { try { return localStorage.getItem('journal.lastAcct') || ''; } catch { return ''; } })();
   const acctSel = editing ? t.accountId || '' : lastAcct && accts.some(a => a.id === lastAcct) ? lastAcct : '';
-  const deduct0 = editing ? !!t.deduct : !!acctSel && (() => { try { return localStorage.getItem('tj.lastDeduct') === '1'; } catch { return false; } })();
+  const deduct0 = editing ? !!t.deduct : !!acctSel && (() => { try { return localStorage.getItem('journal.lastDeduct') === '1'; } catch { return false; } })();
   const methods = store.getSettings().payMethods || [];
   const res = await modal({
     title: editing ? 'Edit expense' : 'Add expense', wide: true,
@@ -72,7 +72,7 @@ export async function txnModal(t = {}, { date } = {}) {
   if (editing) await reverseTxnDeduction(t);
   const obj = await applyTxnDeduction({ ...t, ...d, type: 'expense' });
   const saved = await store.put('txns', obj);
-  try { localStorage.setItem('tj.lastCcy', obj.currency); localStorage.setItem('tj.lastAcct', obj.accountId || ''); localStorage.setItem('tj.lastDeduct', obj.deduct ? '1' : '0'); } catch {}
+  try { localStorage.setItem('journal.lastCcy', obj.currency); localStorage.setItem('journal.lastAcct', obj.accountId || ''); localStorage.setItem('journal.lastDeduct', obj.deduct ? '1' : '0'); } catch {}
   if (repeat) {
     const r = await store.put('recurring', { name: obj.note || obj.merchant || catById(obj.category).name, type: 'expense', amount: obj.amount, currency: obj.currency, category: obj.category, sub: obj.sub || '', merchant: obj.merchant || '', method: obj.method || '', accountId: obj.accountId || '', deduct: !!obj.deduct, freq: repeat, day: +obj.date.slice(8, 10), auto: true, next: nextDate({ freq: repeat, day: +obj.date.slice(8, 10) }, obj.date) });
     await store.put('txns', { ...saved, recurringId: r.id });

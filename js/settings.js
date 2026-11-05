@@ -1,15 +1,14 @@
 import * as store from './store.js';
-import { html, raw, esc, toast, download, readFileText, confirmDlg, modal, formData, today } from './ui.js';
-import { loadDemo, removeDemo, hasDemo } from './demo.js';
+import { html, raw, toast, modal, formData } from './ui.js';
+import { removeDemo, hasDemo } from './demo.js';
 import { exportTxnsCSV, importTxnsDialog } from './spend/csv.js';
 import { refresh, go } from './main.js';
 import { APP_VERSION, CHANGELOG, checkForUpdate, applyUpdate } from './version.js';
 import { exportBackupFlow, importBackupFlow } from './backup.js';
 import { modeCard, switchMode } from './mode.js';
-import { estimatesForm, wireEstimatesForm, saveEstimates, estimateStatus } from './onboarding.js';
 import { startTour } from './tour.js';
 
-import { CURRENCIES, refreshRates, currenciesInUse, otherCurrencies, ratesAt, rate, usingFallback, migrateCurrencies } from './fx.js';
+import { CURRENCIES, refreshRates, currenciesInUse, otherCurrencies, ratesAt, rate, usingFallback } from './fx.js';
 
 export default async function settingsView(el) {
   const s = store.getSettings();
@@ -22,10 +21,6 @@ export default async function settingsView(el) {
     <div class="grid g2">
       <div class="stack">
         ${modeCard()}
-        <div class="card" id="est-card"><div class="card-head"><h2>Starting estimates</h2><span class="hint">placeholders until real data</span></div>
-          ${estimateStatus()}
-          <div class="mt">${estimatesForm({ compact: true })}</div>
-          <div class="row mt"><button class="btn sm ghost" data-act="tour">Take the tour again</button><span class="spacer"></span><button class="btn primary" data-act="est-save">Save estimates</button></div></div>
         <form class="card" id="prefs">
           <div class="card-head"><h2>Preferences</h2></div>
           <div class="form-grid">
@@ -34,7 +29,7 @@ export default async function settingsView(el) {
             </label>
             <label class="field">Number & date format
               <select name="locale">
-                ${[['', 'Browser default'], ['en-US', 'English (US)'], ['en-GB', 'English (UK)'], ['de-DE', 'German'], ['bg-BG', 'Bulgarian'], ['fr-FR', 'French']].map(([v, l]) => html`<option value="${v}" ${(s.locale || '') === v ? raw('selected') : ''}>${l}</option>`)}
+                ${[['', 'Browser default'], ['en-US', 'English (US)'], ['en-GB', 'English (UK)'], ['de-DE', 'German'], ['fr-FR', 'French'], ['es-ES', 'Spanish'], ['it-IT', 'Italian'], ['nl-NL', 'Dutch']].map(([v, l]) => html`<option value="${v}" ${(s.locale || '') === v ? raw('selected') : ''}>${l}</option>`)}
               </select>
             </label>
             <label class="field">Positive / negative colours
@@ -43,6 +38,7 @@ export default async function settingsView(el) {
                 <option value="blueorange" ${s.pnlColors === 'blueorange' ? raw('selected') : ''}>Blue / orange (colour-blind friendly)</option>
               </select>
             </label>
+            <label class="field">Cash runway target <span class="hint">months of spending</span><input name="emergencyMonths" type="number" min="1" max="36" step="1" value="${s.plan?.emergencyMonths || 6}"></label>
             <label class="field">Theme
               <select name="theme"><option value="auto" ${s.theme === 'auto' ? raw('selected') : ''}>Auto (match system)</option><option value="dark" ${s.theme === 'dark' ? raw('selected') : ''}>Dark</option><option value="light" ${s.theme === 'light' ? raw('selected') : ''}>Light</option></select>
             </label>
@@ -68,15 +64,12 @@ export default async function settingsView(el) {
           <div class="card-head"><h2>Backup & restore</h2></div>
           <p class="small muted">Your data lives only in this browser${persisted ? ' (persistent storage granted)' : ''}. Clearing site data, switching browsers or devices loses it — keep a backup. Backups are <b>encrypted with a password you choose</b> (AES-256); restoring asks for it.</p>
           <div class="row">
-            <button class="btn primary" data-act="export">Export full backup (.json)</button>
-            <button class="btn" data-act="export-lite">Export without screenshots</button>
-          </div>
-          <div class="row mt">
+            <button class="btn primary" data-act="export">Export backup (.json)</button>
             <label class="btn">Restore from backup…<input type="file" accept=".json,application/json" data-act="import" hidden></label>
           </div>
           <label class="check mt"><input type="checkbox" id="bk-remind" ${s.backupReminder !== false ? raw('checked') : ''}> Remind me to back up when the last backup is over a week old</label>
           <p class="small muted mt" style="margin-bottom:0">
-            ${counts.nwAccounts} accounts · ${counts.nwSnapshots} balance snapshots · ${counts.txns} expenses · ${counts.recurring} bills & subscriptions · ${counts.days} journal entries
+            ${counts.nwAccounts} accounts · ${counts.nwSnapshots} update days · ${counts.txns} expenses · ${counts.recurring} bills & subscriptions · ${counts.days} journal entries
             ${est ? html`<br>Using ${(est.usage / 1048576).toFixed(1)} MB of local storage.` : ''}
           </p>
         </div>
@@ -90,11 +83,7 @@ export default async function settingsView(el) {
           </div>
         </div>
 
-        <div class="card">
-          <div class="card-head"><h2>Demo data</h2></div>
-          ${hasDemo() ? html`<p class="small muted">Demo data is loaded. Remove it before you start logging real entries (your own entries are kept).</p><button class="btn" data-act="demo-remove">Remove demo data</button>`
-                      : html`<p class="small muted">Load six months of sample spending, bills and budgets plus a net-worth history to explore every chart.</p><button class="btn" data-act="demo-load">Load demo data</button>`}
-        </div>
+        ${hasDemo() ? html`<div class="card"><div class="card-head"><h2>Sample data</h2></div><p class="small muted">Sample data from the tour is still loaded. Remove it — your own entries are kept.</p><button class="btn" data-act="demo-remove">Remove sample data</button></div>` : ''}
 
         <div class="card">
           <div class="card-head"><h2>Exchange rates</h2><span class="hint">${ratesAt() ? 'updated ' + new Date(ratesAt()).toLocaleString() : usingFallback() && currenciesInUse().length ? 'approximate — not loaded yet' : 'not needed yet'}</span></div>
@@ -109,25 +98,24 @@ export default async function settingsView(el) {
         </form>
 
         <div class="card">
-          <div class="card-head"><h2>About this beta</h2><span class="hint">v${APP_VERSION}</span></div>
-          <p class="small muted">The site is static — new versions appear when you reload, but your browser may keep old files cached for a few minutes. This checks for a newer version and loads it.</p>
-          <div class="row"><button class="btn" data-act="update">Check for app update</button><span class="small muted" id="upd"></span></div>
+          <div class="card-head"><h2>About</h2><span class="hint">v${APP_VERSION}</span></div>
+          <p class="small muted">Journal runs entirely in your browser — no account, no server, no tracking. New versions load when you reload the page; this checks right away.</p>
+          <div class="row"><button class="btn" data-act="update">Check for update</button><button class="btn ghost" data-act="tour">Take the tour</button><span class="small muted" id="upd"></span></div>
           <details class="mt"><summary class="small" style="cursor:pointer">What's new</summary><dl class="small mt" style="margin:8px 0 0">${CHANGELOG.map(([v, n]) => html`<dt><b>v${v}</b></dt><dd style="margin:0 0 8px">${n}</dd>`)}</dl></details>
         </div>
 
         <div class="card">
           <div class="card-head"><h2>Danger zone</h2></div>
-          <p class="small muted">Wipe every transaction, bill, account, balance snapshot and setting (including your Finnhub key) from this browser — plus any data left from the old trading-journal version. Export a backup first if you want to keep anything.</p>
+          <p class="small muted">Wipe every transaction, bill, account, balance snapshot and setting (including your Finnhub key) from this browser. Export a backup first if you want to keep anything.</p>
           <button class="btn danger" data-act="wipe">Delete all data…</button>
         </div>
       </div>
     </div>`);
 
-  wireEstimatesForm(el.querySelector('#est-card'));
   el.querySelector('#prefs').onsubmit = async e => {
     e.preventDefault();
     const f = formData(e.target);
-    await store.saveSettings({ currency: f.currency, locale: f.locale || undefined, pnlColors: f.pnlColors, theme: f.theme });
+    await store.saveSettings({ currency: f.currency, locale: f.locale || undefined, pnlColors: f.pnlColors, theme: f.theme, plan: { emergencyMonths: Math.min(36, Math.max(1, Math.round(+f.emergencyMonths) || 6)) } });
     await refreshRates().catch(() => {});
     toast('Preferences saved'); refresh();
   };
@@ -150,7 +138,6 @@ export default async function settingsView(el) {
     if (pick) { if (await switchMode(pick)) { if (pick === 'pro' && store.all('nwAccounts').length) go('/networth/accounts'); else refresh(); } return; }
     const a = e.target.closest('[data-act]')?.dataset.act;
     if (!a) return;
-    if (a === 'est-save') { await saveEstimates(el.querySelector('#est-card')); toast('Starting estimates saved'); refresh(); return; }
     if (a === 'tour') { startTour(); return; }
     if (a === 'nav-reset') { await store.saveSettings({ nav: null }); await store.saveSettings({ nav: { order: [], collapsed: {} } }); toast('Sidebar reset'); refresh(); return; }
     if (a === 'fx') {
@@ -167,20 +154,18 @@ export default async function settingsView(el) {
         out.textContent = `v${u.latest} is available — loading…`;
         await applyUpdate(u.files);
       } catch (err) { out.textContent = 'Could not check: ' + err.message; }
-    } else if (a === 'export' || a === 'export-lite') {
-      if (await exportBackupFlow({ includeImages: a === 'export' })) refresh();
+    } else if (a === 'export') {
+      if (await exportBackupFlow()) refresh();
     } else if (a === 'csv-export') {
       exportTxnsCSV();
     } else if (a === 'csv-import') {
       if (await importTxnsDialog()) refresh();
-    } else if (a === 'demo-load') {
-      await loadDemo(); toast('Demo data loaded'); refresh();
     } else if (a === 'demo-remove') {
-      await removeDemo(); toast('Demo data removed'); refresh();
+      await removeDemo(); toast('Sample data removed'); refresh();
     } else if (a === 'wipe') {
       const ok = await modal({
         title: 'Delete all data?',
-        body: `<p>This permanently deletes every transaction, bill, account, snapshot and setting stored in this browser. It cannot be undone.</p><label class="field">Type <b>DELETE</b> to confirm<input name="c" autocomplete="off"></label>`,
+        body: `<p>This permanently deletes every transaction, bill, account, balance and setting stored in this browser. It cannot be undone.</p><label class="field">Type <b>DELETE</b> to confirm<input name="c" autocomplete="off"></label>`,
         actions: [{ label: 'Cancel' }, { label: 'Delete everything', kind: 'danger', value: w => (w.querySelector('[name=c]').value === 'DELETE' ? true : (toast('Type DELETE to confirm', 'error'), false)) }],
       });
       if (ok === true) { await store.wipeEverything(); toast('All data deleted'); refresh(); }

@@ -1,5 +1,5 @@
 import * as store from './store.js';
-import { html, raw, $, $$, esc, toast, download, today } from './ui.js';
+import { html, raw, $, $$, esc, toast } from './ui.js';
 import { destroyAll } from './charts.js';
 import { checkForUpdate, applyUpdate } from './version.js';
 
@@ -8,20 +8,17 @@ import settingsView from './settings.js';
 import * as SP from './spend/views.js';
 import { txnModal } from './spend/txn.js';
 import { postDueRecurring } from './spend/calc.js';
-import { migrateLegacy } from './migrate.js';
 import * as N from './networth/views.js';
-import { interest } from './networth/interest.js';
 import { flows } from './networth/flows.js';
 import * as J from './journal/views.js';
 import { openHelp } from './help.js';
-import { maybeStartTour, cleanupTourDemo, startTour } from './tour.js';
-import { estimatesView } from './onboarding.js';
+import { cleanupTourDemo } from './tour.js';
 import { exportBackupFlow } from './backup.js';
 import { initTips } from './tips.js';
 import { modeChosen, chooserView } from './mode.js';
 import { migrateCurrencies, refreshRates, ensureRates, currenciesInUse, usingFallback } from './fx.js';
 
-// Grouped navigation. `pro: true` items only appear in Pro mode.
+// Sidebar navigation: Overview, then the three sections (which you can fold and reorder).
 const I = {
   home: 'M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z',
   grid: 'M3 13h8V3H3zm0 8h8v-6H3zm10 0h8V11h-8zm0-18v6h8V3z',
@@ -45,8 +42,6 @@ const NAV = [
   { id: 'networth', group: 'Net worth', items: [
     { path: '/networth', label: 'Net worth', icon: I.grid },
     { path: '/networth/accounts', label: 'Accounts & holdings', icon: I.wallet },
-    { path: '/networth/update', label: 'Update balances', icon: I.flow },
-    { path: '/networth/interest', label: 'Interest', icon: I.bank },
     { path: '/networth/flows', label: 'Money in & out', icon: I.swap },
     { path: '/networth/analytics', label: 'Analytics', icon: I.pie },
   ] },
@@ -64,7 +59,6 @@ const NAV = [
     { path: '/journal/insights', label: 'Insights', icon: I.bulb },
   ] },
 ];
-const hasOwnData = () => ['nwAccounts', 'txns', 'recurring', 'nwSnapshots', 'nwMoves', 'days'].some(c => store.all(c).some(x => !x.demo));
 const ALL_ITEMS = NAV.flatMap(g => g.items);
 // Sidebar sections can be collapsed and put in any order (settings.nav). Overview always stays on top.
 const navPrefs = () => { const n = store.getSettings().nav || {}; return { order: Array.isArray(n.order) ? n.order : [], collapsed: n.collapsed && typeof n.collapsed === 'object' ? n.collapsed : {} }; };
@@ -86,17 +80,15 @@ const ROUTES = [
   [/^\/spending\/recurring$/, SP.recurring],
   [/^\/spending\/categories$/, SP.categories],
   [/^\/networth$/, N.overview],
-  [/^\/networth\/update$/, N.update],
   [/^\/networth\/accounts$/, N.accounts],
   [/^\/networth\/analytics$/, N.analytics],
-  [/^\/networth\/interest$/, interest],
   [/^\/networth\/flows$/, flows],
   [/^\/journal$/, J.journalDay],
   [/^\/journal\/history$/, J.history],
   [/^\/journal\/insights$/, J.insights],
 ];
 // old links keep working
-const REDIRECTS = { '/networth/cashflow': '/spending', '/networth/plan': '/networth/analytics', '/networth/moves': '/networth', '/trading': '/' };
+const REDIRECTS = { '/networth/update': '/networth/accounts', '/networth/interest': '/networth', '/networth/plan': '/networth/analytics', '/networth/moves': '/networth', '/setup': '/' };
 
 const icon = d => raw(`<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg>`);
 
@@ -111,7 +103,7 @@ function applyTheme() {
   const s = store.getSettings();
   const t = resolvedTheme();
   document.documentElement.dataset.theme = t;
-  try { localStorage.setItem('tj.theme', s.theme || 'auto'); } catch {}
+  try { localStorage.setItem('journal.theme', s.theme || 'auto'); } catch {}
   document.documentElement.dataset.pnl = s.pnlColors;
 }
 
@@ -125,8 +117,8 @@ function renderShell(path) {
   const link = i => html`<a href="#${i.path}" class="${match === i ? 'active' : ''}">${icon(i.icon)}<span>${i.label}</span></a>`;
   const match = ALL_ITEMS.filter(i => i.path === path || (i.path !== '/' && path.startsWith(i.path + '/'))).sort((a, b) => b.path.length - a.path.length)[0];
   $('#sidebar').innerHTML = String(html`
-    <a class="brand" href="#/"><span class="brand-mark" aria-hidden="true"></span><span>Ledgerline</span><span class="beta">beta</span></a>
-    <div class="side-actions"><a class="btn primary" href="#/networth/update" data-tour="update">Update balances</a><button class="btn" data-quick-add data-tour="add" title="Add an expense (shortcut: N)">+ Expense</button></div>
+    <a class="brand" href="#/"><span class="brand-mark" aria-hidden="true"></span><span>Journal</span></a>
+    <div class="side-actions"><a class="btn primary" href="#/networth/accounts?update=1" data-tour="update">Update balances</a><button class="btn" data-quick-add data-tour="add" title="Add an expense (shortcut: N)">+ Expense</button></div>
     <nav class="nav" data-tour="nav">${NAV.filter(g => !g.id).flatMap(g => g.items).map(link)}
       ${navGroups().map(g => { const shut = !!prefs.collapsed[g.id], hasActive = g.items.includes(match);
         return html`<div class="nav-section ${shut ? 'shut' : ''}" data-gid="${g.id}">
@@ -214,7 +206,6 @@ export async function route() {
   routing = true; again = false; dirty = false;
   try {
     const path = currentPath();
-    if (!REDIRECTS[path] && /^\/trading(\/|$)/.test(path)) { routing = false; location.replace('#/'); return; }   // pages from the old version
     if (REDIRECTS[path]) { routing = false; location.replace('#' + REDIRECTS[path] + (location.hash.includes('?') ? '?' + location.hash.split('?')[1] : '')); return; }
     applyTheme();
     renderShell(path);
@@ -229,21 +220,15 @@ export async function route() {
     const page = document.createElement('div');
     page.className = 'page';
     main.append(page);
-    // first launch: 1) Simple or Pro input  2) starting estimates  3) guided tour with sample data
-    if (!modeChosen()) { chooserView(page, () => { if (!hasOwnData()) location.hash = '#/setup?first=1'; route(); }); return; }
-    if (path === '/setup') {
-      const first = query().get('first') === '1';
-      estimatesView(page, { firstRun: first, onDone: async () => { if (first) { location.hash = '#/'; await startTour(); } else history.length > 1 ? history.back() : go('/settings'); } });
-      document.title = 'Starting estimates · Ledgerline';
-      return;
-    }
-    if (!view && path !== '/setup') { page.innerHTML = `<h1>Not found</h1><p><a href="#/">Go home</a></p>`; return; }
+    // first launch: choose Simple or Pro input, then straight in
+    if (!modeChosen()) { chooserView(page, () => route()); return; }
+    if (!view) { page.innerHTML = `<h1>Not found</h1><p><a href="#/">Go home</a></p>`; return; }
     cleanup = await view(page, params, { mode: store.getSettings().mode });
     notices(page);
     main.scrollTop = 0;
     window.scrollTo(0, 0);
     const h = page.querySelector('h1');
-    document.title = (h ? h.textContent + ' · ' : '') + 'Ledgerline';
+    document.title = (h ? h.textContent + ' · ' : '') + 'Journal';
     // a newly used currency gets real exchange rates without needing a reload
     ensureRates().then(r => { if (r && !r.skipped && r.ok) softRoute(); }).catch(() => {});
   } catch (e) {
@@ -257,7 +242,7 @@ function softRoute() {
   route(); return true;
 }
 
-// ---------- beta notices: backup reminder + new-version banner ----------
+// ---------- notices: backup reminder, new version, exchange rates ----------
 let updateInfo = null;
 const dismissed = new Set();
 function notices(page, only) {
@@ -328,15 +313,13 @@ async function boot() {
   const quickAdd = async () => { document.body.classList.remove('nav-open'); if (!modeChosen() || document.querySelector('.modal-wrap')) return; if (await txnModal()) route(); };
   document.addEventListener('click', e => { if (e.target.closest('[data-quick-add]')) quickAdd(); });
   document.addEventListener('keydown', e => { if ((e.key === 'n' || e.key === 'N') && !e.metaKey && !e.ctrlKey && !e.altKey && !e.target.closest('input,textarea,select,[contenteditable]')) { e.preventDefault(); quickAdd(); } });
-  // one-time conversion from the old trading-journal version, then post any bills that came due
-  try { await migrateLegacy(); await migrateCurrencies(); } catch (e) { console.error(e); }
+  // tag records that predate per-record currencies, clear an unfinished tour's sample data, add bills that came due
+  try { await migrateCurrencies(); } catch (e) { console.error(e); }
   try { await cleanupTourDemo(); } catch (e) { console.error(e); }
   try { await postDueRecurring(); } catch (e) { console.error(e); }
   route();
-  if (modeChosen()) maybeStartTour();
-  // exchange rates for multi-currency data (cached; refreshed at most twice a day)
   $('#main').addEventListener('input', () => { dirty = true; });
-  // Surface unexpected errors instead of failing silently (beta). Benign browser noise is ignored.
+  // Surface unexpected errors instead of failing silently. Benign browser noise is ignored.
   window.addEventListener('error', e => { const m = e.message || ''; if (/ResizeObserver|^Script error/.test(m)) return; toast('Something went wrong: ' + (m || 'unknown error'), 'error'); });
   window.addEventListener('unhandledrejection', e => toast('Something went wrong: ' + (e.reason?.message || e.reason || 'unknown error'), 'error'));
   // Quietly check for a newer deployed version

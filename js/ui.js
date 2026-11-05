@@ -53,39 +53,17 @@ export function num(v, d = 2, { sign = false } = {}) {
   return (sign && v > 0 ? '+' : '') + s;
 }
 export const pct = (v, d = 1, o) => (v == null || !isFinite(v) ? '—' : num(v * 100, d, o) + '%');
-export const rmult = (v, d = 2) => (v == null || !isFinite(v) ? '—' : num(v, d, { sign: true }) + 'R');
-export function price(v) {
-  if (v == null || v === '' || !isFinite(v)) return '—';
-  const a = Math.abs(v);
-  const d = a >= 1000 ? 2 : a >= 1 ? 2 : a >= 0.01 ? 4 : 6;
-  return num(+v, d);
-}
-export function duration(ms) {
-  if (ms == null || !isFinite(ms)) return '—';
-  const m = Math.round(ms / 60000);
-  if (m < 1) return '<1m';
-  if (m < 60) return m + 'm';
-  const h = Math.floor(m / 60);
-  if (h < 24) return h + 'h ' + (m % 60) + 'm';
-  const d = Math.floor(h / 24);
-  return d + 'd ' + (h % 24) + 'h';
-}
 
 // Dates are handled as local ISO strings: 'YYYY-MM-DD' and 'YYYY-MM-DDTHH:mm'.
 export const pad = n => String(n).padStart(2, '0');
 export const dayKey = d => { d = d instanceof Date ? d : new Date(d); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
 export const monthKey = d => dayKey(d).slice(0, 7);
-export const localDT = d => { d = d instanceof Date ? d : new Date(d); return `${dayKey(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 export const today = () => dayKey(new Date());
 export const parseDay = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d || 1); };
 export function fmtDate(s, opts = { month: 'short', day: 'numeric', year: 'numeric' }) {
   if (!s) return '—';
   const d = s.length <= 10 ? parseDay(s) : new Date(s);
   return d.toLocaleDateString(getSettings().locale, opts);
-}
-export function fmtDateTime(s) {
-  if (!s) return '—';
-  return new Date(s).toLocaleString(getSettings().locale, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 export const fmtMonth = k => parseDay(k + '-01').toLocaleDateString(getSettings().locale, { month: 'short', year: 'numeric' });
 
@@ -174,9 +152,6 @@ export function stat(label, value, { cls = '', sub = '', help = '' } = {}) {
   return html`<div class="stat"><div class="stat-label">${label}${help ? html` <span class="tip" tabindex="0" role="button" aria-label="Help: ${help}" data-tip="${help}">?</span>` : ''}</div><div class="stat-value ${cls}">${value}</div>${sub ? html`<div class="stat-sub">${sub}</div>` : ''}</div>`;
 }
 
-// small "estimate" marker next to numbers that still use the starting estimates
-export const estTag = (on, what = 'your starting estimate') => (on ? html` <span class="tag est" title="Based on ${what} — replaced by your real average after a full month of logged transactions.">estimate</span>` : '');
-
 // Simple chip-input for tags drawn from a list, allowing new entries
 export function chipPicker(name, options, selected = []) {
   const all = [...new Set([...options, ...selected])];
@@ -202,4 +177,3 @@ export function wireChipAdd(root) {
   });
 }
 
-export function debounce(fn, ms = 200) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }

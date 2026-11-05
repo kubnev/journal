@@ -17,7 +17,7 @@ async function deriveKey(password, salt, iterations) {
   return crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
 }
 
-export const isEncrypted = obj => !!(obj && obj.app === 'ledgerline' && obj.encrypted === true);
+export const isEncrypted = obj => !!(obj && ['journal', 'ledgerline'].includes(obj.app) && obj.encrypted === true);
 
 export async function encryptBackup(obj, password) {
   if (!crypto?.subtle) throw new Error('This browser can\'t encrypt (needs a secure https page).');
@@ -25,7 +25,7 @@ export async function encryptBackup(obj, password) {
   const key = await deriveKey(password, salt, ITERATIONS);
   const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encode(JSON.stringify(obj)));
   // Only what's needed to decrypt is stored in the clear — not even the export date.
-  return { app: 'ledgerline', encrypted: true, format: 1, kdf: { name: 'PBKDF2', hash: 'SHA-256', iterations: ITERATIONS, salt: b64(salt) }, cipher: { name: 'AES-GCM', iv: b64(iv) }, data: b64(ct) };
+  return { app: 'journal', encrypted: true, format: 1, kdf: { name: 'PBKDF2', hash: 'SHA-256', iterations: ITERATIONS, salt: b64(salt) }, cipher: { name: 'AES-GCM', iv: b64(iv) }, data: b64(ct) };
 }
 
 // Throws Error('wrong-password') when the password is wrong or the file was altered.

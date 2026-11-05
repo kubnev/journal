@@ -1,14 +1,13 @@
-// Realistic sample data: six months of everyday spending, bills and budgets, a 30-month net-worth
-// history with yields, crypto across custodians and trading capital, and seven
-// weeks of journal entries.
-// Every record is flagged `demo: true` so it can be removed without touching real entries.
+// Sample data for the tour: six months of spending, bills and budgets, a 30-month net-worth history
+// and seven weeks of journal entries. Every record is flagged `demo: true` so it can be removed
+// without touching real entries.
 import * as store from './store.js';
-import { dayKey, monthKey, pad } from './ui.js';
+import { dayKey, monthKey } from './ui.js';
 import { holdingsTotal } from './networth/prices.js';
 import { nextDate } from './spend/calc.js';
 
 function rng(seed) { return () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
-const COLS = ['nwAccounts', 'nwSnapshots', 'nwMoves', 'nwFlows', 'txns', 'recurring', 'days'];
+const COLS = ['nwAccounts', 'nwSnapshots', 'nwFlows', 'txns', 'recurring', 'days'];
 
 export const hasDemo = () => COLS.some(c => store.all(c).some(x => x.demo));
 export async function removeDemo() {
@@ -38,7 +37,7 @@ export async function loadDemo() {
     RC('Gym', 39, 'health', 3, { sub: 'Gym & sport', method: 'Debit card' }),
     RC('Netflix', 15.99, 'subscriptions', 9, { sub: 'Streaming', method: 'Credit card' }),
     RC('Spotify', 10.99, 'subscriptions', 21, { sub: 'Streaming', method: 'Credit card' }),
-    RC('iCloud', 2.99, 'subscriptions', 17, { sub: 'Software & apps', method: 'Apple / Google Pay' }),
+    RC('iCloud', 2.99, 'subscriptions', 17, { sub: 'Software & apps', method: 'Phone wallet' }),
     RC('TradingView', 179, 'subscriptions', 14, { sub: 'Software & apps', method: 'Credit card', freq: 'yearly' }),
     RC('Car insurance', 210, 'transport', 20, { sub: 'Car insurance', method: 'Bank transfer', freq: 'quarterly' }),
   ];
@@ -53,27 +52,27 @@ export async function loadDemo() {
     b.next = d;
   }
   // everyday spending
-  const GRO = ['Lidl', 'Kaufland', 'Billa', 'Fantastico', 'Farmers market'], EAT = ['Wolt', 'Happy Bar & Grill', 'Sushi place', 'Pizza Lab', 'Street food'], CAF = ['Starbucks', 'Costa', 'Corner café'];
-  const SHOP = [['Zara', 'Clothes & shoes'], ['Amazon', 'Electronics'], ['IKEA', 'Home & furniture'], ['Card shop', 'Collectibles & hobbies'], ['H&M', 'Clothes & shoes']];
-  const METH = ['Debit card', 'Debit card', 'Apple / Google Pay', 'Credit card', 'Cash'];
+  const GRO = ['Supermarket', 'Discount grocer', 'Corner shop', 'Organic store', 'Farmers market'], EAT = ['Delivery app', 'Grill house', 'Sushi place', 'Pizzeria', 'Street food'], CAF = ['Coffee chain', 'Corner café', 'Bakery café'];
+  const SHOP = [['Clothing store', 'Clothes & shoes'], ['Online shop', 'Electronics'], ['Furniture store', 'Home & furniture'], ['Hobby shop', 'Collectibles & hobbies'], ['Shoe store', 'Clothes & shoes']];
+  const METH = ['Debit card', 'Debit card', 'Phone wallet', 'Credit card', 'Cash'];
   for (let d = new Date(start); dayKey(d) <= todayK; d.setDate(d.getDate() + 1)) {
     const k = dayKey(d), dow = d.getDay(), weekend = dow === 0 || dow === 6;
     if (R() < 0.13) continue;                                        // a no-spend day
     if (R() < (weekend ? 0.55 : 0.3)) { const g = pick(GRO); T(k, 'expense', between(14, weekend ? 95 : 45), 'groceries', g === 'Farmers market' ? 'Fruit & veg' : 'Groceries', { merchant: g, sub: g === 'Farmers market' ? 'Market & bakery' : 'Supermarket', method: pick(METH) }); }
-    if (R() < 0.45) { const c = pick(CAF); T(k, 'expense', between(2.8, 5.5), 'dining', 'Coffee', { merchant: c, sub: 'Cafés & coffee', method: 'Apple / Google Pay' }); }
-    if (R() < (weekend ? 0.5 : 0.18)) { const e = pick(EAT); T(k, 'expense', between(12, weekend ? 70 : 28), 'dining', e === 'Wolt' ? 'Delivery' : 'Dinner out', { merchant: e, sub: e === 'Wolt' ? 'Takeaway & delivery' : 'Restaurants', method: pick(METH) }); }
-    if (R() < 0.12) T(k, 'expense', between(45, 75), 'transport', 'Fuel', { merchant: pick(['Shell', 'OMV', 'Lukoil']), sub: 'Fuel', method: 'Debit card' });
-    if (R() < 0.1) T(k, 'expense', between(6, 18), 'transport', 'Taxi', { merchant: 'Uber', sub: 'Taxi & rideshare', method: 'Credit card' });
+    if (R() < 0.45) { const c = pick(CAF); T(k, 'expense', between(2.8, 5.5), 'dining', 'Coffee', { merchant: c, sub: 'Cafés & coffee', method: 'Phone wallet' }); }
+    if (R() < (weekend ? 0.5 : 0.18)) { const e = pick(EAT); T(k, 'expense', between(12, weekend ? 70 : 28), 'dining', e === 'Delivery app' ? 'Delivery' : 'Dinner out', { merchant: e, sub: e === 'Delivery app' ? 'Takeaway & delivery' : 'Restaurants', method: pick(METH) }); }
+    if (R() < 0.12) T(k, 'expense', between(45, 75), 'transport', 'Fuel', { merchant: pick(['Fuel station', 'Motorway services']), sub: 'Fuel', method: 'Debit card' });
+    if (R() < 0.1) T(k, 'expense', between(6, 18), 'transport', 'Taxi', { merchant: 'Taxi app', sub: 'Taxi & rideshare', method: 'Credit card' });
     if (R() < 0.06) { const [m, sub] = pick(SHOP); T(k, 'expense', between(25, 160), 'shopping', sub, { merchant: m, sub, method: pick(METH), kind: sub === 'Collectibles & hobbies' ? 'want' : undefined }); }
     if (R() < 0.05) T(k, 'expense', between(12, 60), 'fun', pick(['Cinema', 'Concert tickets', 'Bowling', 'Steam game']), { sub: pick(['Events & concerts', 'Games', 'Activities']), method: pick(METH) });
-    if (R() < 0.03) T(k, 'expense', between(8, 45), 'health', 'Pharmacy', { merchant: 'Sopharmacy', sub: 'Pharmacy', method: 'Debit card' });
+    if (R() < 0.03) T(k, 'expense', between(8, 45), 'health', 'Pharmacy', { merchant: 'Pharmacy', sub: 'Pharmacy', method: 'Debit card' });
     if (R() < 0.025) T(k, 'expense', between(15, 40), 'personal', 'Haircut', { sub: 'Haircut & beauty', method: 'Cash' });
     if (R() < 0.02) T(k, 'expense', between(20, 80), 'gifts', 'Gift', { sub: 'Gifts', method: pick(METH) });
   }
   // one trip and a few one-offs
   const mk = n => monthKey(new Date(now.getFullYear(), now.getMonth() - n, 1));
-  T(`${mk(3)}-08`, 'expense', 240, 'travel', 'Flights to Lisbon', { merchant: 'Ryanair', sub: 'Flights', method: 'Credit card', tags: ['holiday'] });
-  T(`${mk(3)}-10`, 'expense', 380, 'travel', 'Apartment, 4 nights', { merchant: 'Airbnb', sub: 'Accommodation', method: 'Credit card', tags: ['holiday'] });
+  T(`${mk(3)}-08`, 'expense', 240, 'travel', 'Flights', { merchant: 'Airline', sub: 'Flights', method: 'Credit card', tags: ['holiday'] });
+  T(`${mk(3)}-10`, 'expense', 380, 'travel', 'Apartment, 4 nights', { merchant: 'Holiday rental', sub: 'Accommodation', method: 'Credit card', tags: ['holiday'] });
   T(`${mk(3)}-12`, 'expense', 165, 'travel', 'Food & tours', { sub: 'Activities & food', method: 'Cash', tags: ['holiday'] });
   T(`${mk(2)}-15`, 'expense', 120, 'education', 'Online course', { sub: 'Courses', method: 'Credit card' });
   T(`${mk(1)}-22`, 'expense', 60, 'fees', 'Parking fine', { sub: 'Fines', method: 'Debit card' });
@@ -87,8 +86,8 @@ export async function loadDemo() {
     const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i), k = dayKey(d);
     if (R() < 0.2) continue;
     const mood = clamp(3.4 + normal() * 1.05), stress = clamp(5.6 - mood + normal() * 0.8), sleep = Math.round(Math.max(4.5, Math.min(9, 7 + normal() * 0.9 + (mood - 3) * 0.3)) * 2) / 2;
-    days.push({ id: k, demo: true, mood, stress, energy: clamp(mood + normal() * 0.7), sleep, dayRating: clamp(mood + normal() * 0.6),
-      mind: pick(MIND), habits: Object.fromEntries(HAB.map(h => [h, R() < (mood >= 4 ? 0.7 : 0.35)])), lesson: R() < 0.25 ? pick(['Wait a day before buying anything over €50.', 'Go to bed before midnight.', 'Walk before checking the charts.', 'Fewer coffees after 2pm.']) : '' });
+    days.push({ id: k, demo: true, mood, stress, energy: clamp(mood + normal() * 0.7), sleep,
+      mind: pick(MIND), habits: Object.fromEntries(HAB.map(h => [h, R() < (mood >= 4 ? 0.7 : 0.35)])), lesson: R() < 0.25 ? pick(['Wait a day before buying anything big.', 'Go to bed before midnight.', 'Walk before checking the charts.', 'Fewer coffees after 2pm.']) : '' });
     if (stress >= 4 || mood <= 2) { const [m, sub] = pick(SHOP); T(k, 'expense', between(35, 140), 'shopping', sub, { merchant: m, sub, method: 'Credit card', kind: 'want', note: 'Impulse buy' }); }
   }
   await store.putMany('recurring', bills);
@@ -101,12 +100,12 @@ export async function loadDemo() {
   // ---------------- net worth ----------------
   const A = (name, kind, category, extra = {}) => ({ id: id(), demo: true, name, kind, category, ...extra });
   const nw = {
-    checking: A('Checking', 'asset', 'cash', { currency: 'EUR', institution: 'Revolut', custody: 'bank', purpose: 'Spending' }),
-    hysa: A('High-yield savings', 'asset', 'savings', { currency: 'EUR', institution: 'Trade Republic', custody: 'bank', purpose: 'Emergency fund', apy: 2.75, apyHistory: [{ from: '0000-01-01', apy: 3.75 }, { from: dayKey(new Date(now.getFullYear(), now.getMonth() - 4, 1)), apy: 2.75 }] }),
-    mmf: A('Money-market fund', 'asset', 'savings', { currency: 'USD', institution: 'IBKR', custody: 'broker', purpose: 'Short-term goals', apy: 4.6, liquid: true }),
-    etf: A('ETF portfolio', 'asset', 'brokerage', { currency: 'USD', institution: 'IBKR', custody: 'broker', purpose: 'Long-term investing' }),
+    checking: A('Checking', 'asset', 'cash', { currency: 'EUR', institution: 'Bank', custody: 'bank', purpose: 'Spending' }),
+    hysa: A('High-yield savings', 'asset', 'savings', { currency: 'EUR', institution: 'Online bank', custody: 'bank', purpose: 'Emergency fund', apy: 2.75 }),
+    mmf: A('Money-market fund', 'asset', 'savings', { currency: 'USD', institution: 'Broker', custody: 'broker', purpose: 'Short-term goals', apy: 4.6, liquid: true }),
+    etf: A('ETF portfolio', 'asset', 'brokerage', { currency: 'USD', institution: 'Broker', custody: 'broker', purpose: 'Long-term investing' }),
     pension: A('Pension fund', 'asset', 'retirement', { currency: 'EUR', institution: 'Pension', custody: 'broker', purpose: 'Retirement' }),
-    cexAcc: A('Binance spot', 'asset', 'crypto', { currency: 'USD', institution: 'Binance', custody: 'cex', purpose: 'Crypto', tracksHoldings: true, holdings: [
+    cexAcc: A('Exchange spot', 'asset', 'crypto', { currency: 'USD', institution: 'Exchange', custody: 'cex', purpose: 'Crypto', tracksHoldings: true, holdings: [
       { id: id(), type: 'crypto', symbol: 'SOL', qty: 18, price: 150, cost: 2100, priceSource: 'demo', priceAt: now.toISOString() },
       { id: id(), type: 'crypto', symbol: 'LINK', qty: 140, price: 14, cost: 1650, priceSource: 'demo', priceAt: now.toISOString() },
       { id: id(), type: 'crypto', symbol: 'USDC', qty: 2500, price: 1, cost: 2500, priceSource: 'demo', priceAt: now.toISOString() },
@@ -114,13 +113,13 @@ export async function loadDemo() {
     cold: A('Cold wallet (BTC)', 'asset', 'crypto', { currency: 'USD', institution: 'Hardware wallet', custody: 'self', purpose: 'Long-term investing', tracksHoldings: true, holdings: [
       { id: id(), type: 'crypto', symbol: 'BTC', qty: 0.12, price: 68000, cost: 4200, priceSource: 'demo', priceAt: now.toISOString() },
     ] }),
-    defi: A('Staked ETH (Lido)', 'asset', 'crypto', { currency: 'USD', institution: 'Lido', custody: 'dex', purpose: 'Crypto', apy: 3.1 }),
-    trading: A('Swing trading capital', 'asset', 'trading', { currency: 'USD', institution: 'IBKR', custody: 'broker', purpose: 'Trading capital' }),
-    bybit: A('Bybit trading capital', 'asset', 'trading', { currency: 'USDT', institution: 'Bybit', custody: 'cex', purpose: 'Trading capital' }),
+    defi: A('Staked ETH', 'asset', 'crypto', { currency: 'USD', institution: 'Staking protocol', custody: 'dex', purpose: 'Crypto', apy: 3.1 }),
+    trading: A('Swing trading capital', 'asset', 'trading', { currency: 'USD', institution: 'Broker', custody: 'broker', purpose: 'Trading capital' }),
+    bybit: A('Futures exchange', 'asset', 'trading', { currency: 'USDT', institution: 'Exchange', custody: 'cex', purpose: 'Trading capital' }),
     home: A('Apartment', 'asset', 'realestate', { currency: 'EUR', purpose: 'Home & property' }),
     car: A('Car', 'asset', 'vehicle', { currency: 'EUR' }),
     mortgage: A('Mortgage', 'liability', 'mortgage', { currency: 'EUR', institution: 'Bank', rate: 3.4, payment: 820 }),
-    cc: A('Credit card', 'liability', 'credit', { currency: 'EUR', institution: 'Amex', rate: 21 }),
+    cc: A('Credit card', 'liability', 'credit', { currency: 'EUR', institution: 'Card issuer', rate: 21 }),
   };
   const M = 30;
   const snaps = [];

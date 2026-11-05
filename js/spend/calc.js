@@ -12,7 +12,6 @@ export const expenses = (list = all('txns')) => list.filter(t => counted(t) && t
 export const inMonth = (list, m) => list.filter(t => t.date.startsWith(m));
 export const sum = list => list.reduce((s, t) => s + val(t), 0);
 
-export const monthKeyOf = d => d.slice(0, 7);
 export const shiftMonth = (m, n) => { const d = parseDay(m + '-01'); d.setMonth(d.getMonth() + n); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; };
 export const daysInMonth = m => { const [y, mo] = m.split('-').map(Number); return new Date(y, mo, 0).getDate(); };
 export const currentMonth = () => today().slice(0, 7);
@@ -22,11 +21,6 @@ export function byCategory(list) {
   const m = new Map();
   for (const t of list) { const e = m.get(t.category) || { id: t.category, total: 0, count: 0 }; e.total += val(t); e.count++; m.set(t.category, e); }
   return [...m.values()].sort((a, b) => b.total - a.total);
-}
-export function bySub(list) {
-  const m = new Map();
-  for (const t of list) { const k = t.sub || '—'; m.set(k, (m.get(k) || 0) + val(t)); }
-  return [...m.entries()].map(([sub, total]) => ({ sub, total })).sort((a, b) => b.total - a.total);
 }
 export function byKey(list, key) {
   const m = new Map();
@@ -53,14 +47,8 @@ export function monthSummary(m = currentMonth()) {
   const due = isCur ? upcoming(m).filter(u => u.date > today() && u.date.startsWith(m) && u.type !== 'income').reduce((s, u) => s + u.value, 0) : 0;
   const recurDone = ex.filter(t => t.recurringId).reduce((s, t) => s + val(t), 0);
   const varSpent = spent - recurDone;
-  // Early in the month a few days say little, so the daily pace leans on your usual month (real
-  // average, or your starting estimate) and shifts fully to this month's own pace by day 10.
-  const base = baseline();
-  const fixedMonthly = all('recurring').filter(r => !r.paused && r.type !== 'income').reduce((a, r) => a + monthlyCost({ ...r, amount: val({ ...r, date: today() }) }), 0);
-  const usualRate = base.avgExpenses != null ? Math.max(0, base.avgExpenses - fixedMonthly) / n : null;
-  const ownRate = dayNow ? varSpent / dayNow : 0, w = usualRate == null ? 1 : Math.min(1, dayNow / 10);
-  const rate = w * ownRate + (1 - w) * (usualRate || 0);
-  const projected = isCur ? spent + rate * (n - dayNow) + due : spent;
+  // only once a week of the month has passed — before that a daily pace says little
+  const projected = isCur ? (dayNow >= 7 ? spent + (varSpent / dayNow) * (n - dayNow) + due : null) : spent;
   const b = budgetFor(m);
   const left = b.total ? b.total - spent : null;
   const daysLeft = isCur ? n - dayNow + 1 : 0;
@@ -69,7 +57,7 @@ export function monthSummary(m = currentMonth()) {
   const needs = ex.filter(t => kindOf(t) === 'need').reduce((s, t) => s + val(t), 0);
   const wants = spent - needs;
   const biggest = [...ex].sort((a, b2) => val(b2) - val(a))[0] || null;
-  return { m, projectionUsesEstimate: isCur && w < 1 && base.estimated.spending, usualSpending: base.avgExpenses, spent, n, dayNow, daily, noSpend, avgDay, projected, due, budget: b.total, left, safeToday, daysLeft, needs, wants, count: ex.length, biggest, ex };
+  return { m, usualSpending: baseline().avgExpenses, spent, n, dayNow, daily, noSpend, avgDay, projected, due, budget: b.total, left, safeToday, daysLeft, needs, wants, count: ex.length, biggest, ex };
 }
 
 // same point in the previous month, for "vs last month"

@@ -78,11 +78,10 @@ export async function journalDay(el) {
         ${habits.length ? html`<h3 class="mt">Habits</h3><div class="chips">${habits.map(h => html`<label class="chip"><input type="checkbox" name="habit:${h}" ${j.habits?.[h] ? raw('checked') : ''}><span>${h}</span></label>`)}</div>` : html`<p class="small muted mt">Add daily habits to track in <a href="#/settings">Settings</a>.</p>`}
         </fieldset>
         <fieldset><legend>Reflection</legend><div class="form-grid">
-          <label class="field">Day rating${scale('dayRating', j.dayRating, NUMS)}</label>
-          <label class="field full">How did the day go?<textarea name="recap" rows="3">${j.recap || ''}</textarea></label>
+          ${j.recap ? html`<label class="field full">How did the day go?<textarea name="recap" rows="3">${j.recap}</textarea></label>` : ''}
           ${pro ? html`<label class="field span2">What went well<textarea name="good" rows="3">${j.good || ''}</textarea></label>
           <label class="field span2">What was hard<textarea name="hard" rows="3">${j.hard || j.improve || ''}</textarea></label>` : ''}
-          <label class="field full">Grateful for<textarea name="gratitude" rows="2">${j.gratitude || ''}</textarea></label>
+          <label class="field full">Three things you're grateful for<textarea name="gratitude" rows="2" placeholder="Small things count">${j.gratitude || ''}</textarea></label>
           <label class="field full">Note to self for tomorrow<textarea name="lesson" rows="2">${j.lesson || ''}</textarea></label>
         </div>
         ${pro ? html`<h3 class="mt">Tags</h3>${chipPicker('tags', store.getSettings().dayTags || [], j.tags || [])}` : ''}
@@ -121,7 +120,7 @@ export async function journalDay(el) {
     const f = formData(form);
     const obj = { ...j, id: day };
     for (const k of ['mind', 'recap', 'good', 'hard', 'gratitude', 'lesson']) if (k in f) obj[k] = f[k];
-    for (const k of ['mood', 'energy', 'stress', 'sleep', 'dayRating']) if (k in f) obj[k] = toNum(f[k]);
+    for (const k of ['mood', 'energy', 'stress', 'sleep']) if (k in f) obj[k] = toNum(f[k]);
     if ('tags' in f) obj.tags = f.tags;
     obj.habits = {};
     for (const h of habits) obj.habits[h] = !!f['habit:' + h];
@@ -173,7 +172,7 @@ export async function history(el) {
         <div class="small muted mt">Emoji = mood · amount = everyday spending that day (bills left out)</div></div>
       <div class="card mt"><div class="card-head"><h2>Consistency — last 12 months</h2><span class="hint">each square is a day you journaled</span></div><div class="yearmap" id="ym"></div></div>
       <div class="card mt"><div class="card-head"><h2>Entries</h2><span class="hint">${monthEntries.length}</span></div>
-        ${monthEntries.length ? html`<div class="stack" style="gap:0">${monthEntries.sort((a, b) => b.id.localeCompare(a.id)).map(e => html`<a class="entry" href="#/journal?day=${e.id}"><div class="row"><b>${fmtDate(e.id, { weekday: 'long', month: 'short', day: 'numeric' })}</b>${e.mood ? html`<span>${MOODS[e.mood - 1]}</span>` : ''}${e.dayRating ? html`<span class="tag">day ${e.dayRating}/5</span>` : ''}${e.stress ? html`<span class="tag">stress ${e.stress}/5</span>` : ''}${(e.tags || []).map(t => html`<span class="tag accent">${t}</span>`)}</div>${e.mind ? html`<div class="small"><span class="muted">On my mind:</span> ${e.mind}</div>` : ''}${e.recap ? html`<div class="small"><span class="muted">Day:</span> ${e.recap}</div>` : ''}${e.gratitude ? html`<div class="small"><span class="muted">Grateful for:</span> ${e.gratitude}</div>` : ''}${e.lesson ? html`<div class="small"><span class="muted">Note to self:</span> ${e.lesson}</div>` : ''}</a>`)}</div>` : html`<p class="muted small">No entries this month.</p>`}
+        ${monthEntries.length ? html`<div class="stack" style="gap:0">${monthEntries.sort((a, b) => b.id.localeCompare(a.id)).map(e => html`<a class="entry" href="#/journal?day=${e.id}"><div class="row"><b>${fmtDate(e.id, { weekday: 'long', month: 'short', day: 'numeric' })}</b>${e.mood ? html`<span>${MOODS[e.mood - 1]}</span>` : ''}${e.stress ? html`<span class="tag">stress ${e.stress}/5</span>` : ''}${(e.tags || []).map(t => html`<span class="tag accent">${t}</span>`)}</div>${e.mind ? html`<div class="small"><span class="muted">On my mind:</span> ${e.mind}</div>` : ''}${e.recap ? html`<div class="small"><span class="muted">Day:</span> ${e.recap}</div>` : ''}${e.gratitude ? html`<div class="small"><span class="muted">Grateful for:</span> ${e.gratitude}</div>` : ''}${e.lesson ? html`<div class="small"><span class="muted">Note to self:</span> ${e.lesson}</div>` : ''}</a>`)}</div>` : html`<p class="muted small">No entries this month.</p>`}
       </div>`);
     const set = new Set(store.all('days').map(d => d.id));
     const end = new Date(), s0 = new Date(end.getFullYear(), end.getMonth(), end.getDate() - 364);

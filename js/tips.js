@@ -8,15 +8,15 @@ const F = {
   group: 'Pick the closest fit. Cash = spending money; Savings = money put aside; Trading capital = money in your trading accounts; Investments = long-term holdings; Assets = things you own; Debt = what you owe.',
   kind: 'Asset = something you own (cash, investments, a home). Liability = something you owe (loan, card balance). Liabilities are subtracted from net worth.',
   category: 'Groups the account in charts and on Accounts, and decides the default for “Liquid?”.',
-  'nf:name': 'Any name you’ll recognise, e.g. “Revolut EUR” or “Vanguard ISA”.',
+  'nf:name': 'Any name you’ll recognise, e.g. “Main bank EUR” or “Index fund”.',
   institution: 'Bank, broker or app where it’s held. Just a label.',
   currency: 'The currency this account is kept in. Enter balances in this currency — totals and charts convert it to your display currency automatically.',
-  balance: 'What it’s worth today, in the account’s currency. For debts, the amount you still owe. Saved as today’s snapshot.',
+  balance: 'What it’s worth today, in the account’s currency. For debts, the amount you still owe. Saved as its first balance update.',
   rate: 'Yearly interest rate on the debt. Used for the weighted average rate and to prioritise payoff.',
   payment: 'Your regular monthly payment on this debt, in the account’s currency.',
   custody: 'Who actually holds the money — bank, broker, crypto exchange, your own wallet… Used to show counterparty risk in Analytics.',
   purpose: 'What this money is for (emergency fund, retirement, house deposit…). Auto picks one from the category; choose “Other” to name your own. Shown as buckets in Analytics.',
-  apy: 'Yearly interest / yield (APY). The balance grows a little every day from your last update, and the Interest page shows what it earns per day, month and year. Changing it later keeps the old rate for the past. Leave blank if it doesn’t earn interest.',
+  apy: 'Yearly interest / yield (APY). Used only for the estimates on Net worth (what it earns per day, month and year) — the balance itself only changes when you update it. Leave blank or 0 if it doesn’t earn interest.',
   liquid: 'Could you turn it into cash within a few days without a big loss? Yes for cash, savings, stocks, crypto; no for a house, car or locked pension. Auto decides by category.',
   tracksHoldings: 'Instead of typing a balance, list what you hold (e.g. 0.5 BTC, 10 AAPL). Value = quantity × price, and prices can update with one click.',
   'nf:notes': 'Anything you want to remember about this account.',
@@ -39,12 +39,9 @@ const F = {
   repeat: 'Creates a bill/subscription from this transaction, so the next ones are added automatically.',
   exclude: 'Kept in the list but left out of totals, budgets and charts — e.g. something your employer will reimburse.',
 
-  // ---------- starting estimates ----------
-  'estf:currency': 'The currency you think in. Totals and charts are shown in it, and your estimates are read in it.',
-  'estf:spending': 'Everything you spend in a normal month — rent, bills, food, fun. Used for cash runway and the early-month projection until you have a full month of logged expenses.',
-  'estf:budget': 'Optional monthly spending limit. Gives you “left in budget” and a safe amount to spend per day. Per-category limits are on Spending → Budgets.',
-  'estf:nwYearAgo': 'Optional rough net worth 12 months ago, so year-on-year growth shows something before you have a year of history.',
-  'estf:emergencyMonths': 'How many months of spending you want to keep in cash and savings. 3–6 is the usual target.',
+  // ---------- update a balance ----------
+  'ubf:value': 'What the account is worth (or what you owe) on that date, in the account’s own currency.',
+  'ubf:date': 'The day this balance is for. One value per account per day — saving the same day again replaces it.',
 
   // ---------- bills & subscriptions ----------
   'rf:name': 'What it is, e.g. Rent, Netflix, Gym.',
@@ -78,11 +75,10 @@ const F = {
   stress: '1 = calm, 5 = very stressed. Insights compares it with what you spend.',
   sleep: 'Hours slept last night.',
   mind: 'Whatever is on your mind — writing it down tends to take the weight off.',
-  dayRating: 'How the day went overall, 1–5.',
   recap: 'A few lines on how the day went.',
   good: 'Something that went well — however small.',
   hard: 'What was difficult or draining today.',
-  gratitude: 'One or two things you’re grateful for.',
+  gratitude: 'A few things you’re grateful for, however small. Writing them down regularly is one of the best-studied habits for wellbeing.',
   lesson: 'A short note for tomorrow — shows up in Insights as “Notes to self”.',
   habits: 'Habits to tick off in the daily check-in, one per line.',
   dayTags: 'Labels for days (Stressed, Social, Sick…), one per line. Pro input.',
@@ -135,12 +131,11 @@ const H = {
   'Next': 'Next payment date. Red = past due and not added yet.',
   'Used': 'How many transactions use this category.',
   'Need / want': 'Need = essential, want = optional. Drives the needs-vs-wants split on Spending.',
-  'Since last update': 'Interest earned since you last typed this balance (estimate at the APY in force).',
-  'This year': 'Interest earned since 1 January (estimate). Each balance update restarts the estimate from what you typed.',
+  'Since last update': 'Roughly what the account has earned since you last updated it, at its APY. An estimate — your next update shows the real number.',
   'APY': 'Annual percentage yield — the yearly interest rate including compounding.',
   'APR': 'Annual interest rate on the debt.',
-  'Per day': 'Interest earned per day at the current balance and APY.',
-  'Per year': 'Interest earned per year at the current balance and APY.',
+  'Per day': 'Estimated interest per day at the current balance and APY.',
+  'Per year': 'Estimated interest per year at the current balance and APY.',
 };
 
 const tipFor = el => {
@@ -150,7 +145,6 @@ const tipFor = el => {
   const t = (form && F[`${form}:${name}`]) || F[name];
   if (t) return t;
   if (/^c:/.test(name)) return 'Monthly limit for this category. The bar shows spending so far; the marker is where an even pace would be today. Blank = no limit.';
-  if (form === 'uf' && el.type === 'number') return 'What this account is worth on the snapshot date, in its own currency (for debts: the amount still owed). Pre-filled with the last known value — change only what moved.';
   return null;
 };
 const icon = text => { const s = document.createElement('span'); s.className = 'tip'; s.tabIndex = 0; s.setAttribute('role', 'button'); s.setAttribute('aria-label', 'Help: ' + text); s.dataset.tip = text; s.textContent = '?'; return s; };
