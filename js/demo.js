@@ -8,7 +8,7 @@ import { holdingsTotal } from './networth/prices.js';
 import { nextDate } from './spend/calc.js';
 
 function rng(seed) { return () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
-const COLS = ['nwAccounts', 'nwSnapshots', 'nwMoves', 'txns', 'recurring', 'days'];
+const COLS = ['nwAccounts', 'nwSnapshots', 'nwMoves', 'nwFlows', 'txns', 'recurring', 'days'];
 
 export const hasDemo = () => COLS.some(c => store.all(c).some(x => x.demo));
 export async function removeDemo() {
@@ -158,6 +158,13 @@ export async function loadDemo() {
   await store.putMany('recurring', bills.map(b => ({ ...b, accountId: b.category === 'subscriptions' && b.method === 'Credit card' ? nw.cc.id : nw.checking.id, deduct: false })));
   await store.putMany('txns', txns.filter(t => t.recurringId).map(t => ({ ...t, accountId: store.get('recurring', t.recurringId)?.accountId || '' })));
   await store.putMany('nwSnapshots', snaps.filter(s => !store.all('nwSnapshots').some(x => x.date === s.date)));
+  // money put into / taken out of investment and trading accounts this year
+  const fl = (m, day, acc, dir, amount, currency, note) => ({ id: id(), demo: true, date: dayKey(new Date(now.getFullYear(), m, day)), accountId: acc.id, dir, amount, currency, note });
+  const flowList = [];
+  for (let m = 0; m <= now.getMonth(); m++) if (dayKey(new Date(now.getFullYear(), m, 3)) <= todayK) flowList.push(fl(m, 3, nw.etf, 'in', 500, 'USD', 'Monthly ETF buy'));
+  if (now.getMonth() >= 2) flowList.push(fl(2, 14, nw.trading, 'out', 3000, 'USD', 'Took profits'));
+  if (now.getMonth() >= 4) flowList.push(fl(4, 20, nw.bybit, 'in', 2000, 'USDT', 'Topped up exchange'));
+  await store.putMany('nwFlows', flowList);
   // a sample target allocation (never touches your own targets); removed with the demo
   const pl = store.getSettings().plan;
   const simple = store.getSettings().mode !== 'pro';

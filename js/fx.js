@@ -3,6 +3,7 @@
 // Rates: ECB reference rates via Frankfurter (daily history), Coinbase as fallback for the latest
 // rate of currencies the ECB doesn't publish. Rates are cached locally so the app works offline.
 import * as store from './store.js';
+import { maskMoney } from './ui.js';
 
 export const CURRENCIES = ['USD', 'EUR', 'GBP', 'BGN', 'CHF', 'JPY', 'CAD', 'AUD', 'NZD', 'SEK', 'NOK', 'DKK', 'PLN', 'CZK', 'RON', 'HUF', 'TRY', 'INR', 'SGD', 'HKD', 'CNY', 'ZAR', 'BRL', 'MXN', 'AED', 'USDT'];
 const USD_LIKE = new Set(['USD', 'USDT']);
@@ -131,6 +132,7 @@ export function moneyIn(v, cur, { sign = false } = {}) {
   const c = cur === 'USDT' ? 'USD' : cur || displayCcy();
   const k = c + (store.getSettings().locale || '');
   if (!nfs.has(k)) nfs.set(k, new Intl.NumberFormat(store.getSettings().locale, { style: 'currency', currency: c, maximumFractionDigits: 2 }));
+  if (store.getSettings().privacy) return maskMoney(nfs.get(k)) + (cur === 'USDT' ? ' ₮' : '');
   const s = nfs.get(k).format(Math.abs(v)) + (cur === 'USDT' ? ' ₮' : '');
   return v < 0 ? '−' + s : (sign && v > 0 ? '+' : '') + s;
 }

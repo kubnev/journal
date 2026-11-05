@@ -11,6 +11,7 @@ import { postDueRecurring } from './spend/calc.js';
 import { migrateLegacy } from './migrate.js';
 import * as N from './networth/views.js';
 import { interest } from './networth/interest.js';
+import { flows } from './networth/flows.js';
 import * as J from './journal/views.js';
 import { openHelp } from './help.js';
 import { maybeStartTour, cleanupTourDemo, startTour } from './tour.js';
@@ -46,6 +47,7 @@ const NAV = [
     { path: '/networth/accounts', label: 'Accounts & holdings', icon: I.wallet },
     { path: '/networth/update', label: 'Update balances', icon: I.flow },
     { path: '/networth/interest', label: 'Interest', icon: I.bank },
+    { path: '/networth/flows', label: 'Money in & out', icon: I.swap },
     { path: '/networth/analytics', label: 'Analytics', icon: I.pie },
   ] },
   { id: 'spending', group: 'Spending', items: [
@@ -88,6 +90,7 @@ const ROUTES = [
   [/^\/networth\/accounts$/, N.accounts],
   [/^\/networth\/analytics$/, N.analytics],
   [/^\/networth\/interest$/, interest],
+  [/^\/networth\/flows$/, flows],
   [/^\/journal$/, J.journalDay],
   [/^\/journal\/history$/, J.history],
   [/^\/journal\/insights$/, J.insights],
@@ -266,12 +269,13 @@ function notices(page, only) {
   if (currenciesInUse().length && usingFallback() && !dismissed.has('fx')) items.push(['fx', 'Exchange rates haven\'t loaded yet — other currencies are converted with approximate rates.', 'Retry']);
   if (s.reviewAccounts && s.mode === 'pro' && currentPath().startsWith('/networth')) items.push(['review', 'You switched to Pro input: check your accounts\' categories, custody, purpose and liquidity so analytics are accurate.', 'Review accounts']);
   if (updateInfo?.available && !dismissed.has('update')) items.push(['update', `Version ${updateInfo.latest} is available.`, 'Load it now']);
-  if (hasData && stale && !dismissed.has('backup')) items.push(['backup', s.lastBackupAt ? `Last backup was ${Math.floor((Date.now() - new Date(s.lastBackupAt)) / 864e5)} days ago. Your data only lives in this browser.` : 'You haven\'t backed up yet. Your data only lives in this browser.', 'Back up now']);
+  if (hasData && stale && s.backupReminder !== false && !dismissed.has('backup')) items.push(['backup', s.lastBackupAt ? `Last backup was ${Math.floor((Date.now() - new Date(s.lastBackupAt)) / 864e5)} days ago. Your data only lives in this browser.` : 'You haven\'t backed up yet. Your data only lives in this browser.', 'Back up now']);
   for (const [k, text, label] of items) {
     if (only && k !== only) continue;
     const d = document.createElement('div');
     d.className = 'notice';
-    d.innerHTML = `<span>${text}</span><span class="spacer"></span><button class="btn sm primary" data-n="${k}">${label}</button><button class="btn sm ghost" data-x="${k}">Later</button>`;
+    d.innerHTML = `<span>${text}</span><span class="spacer"></span><button class="btn sm primary" data-n="${k}">${label}</button><button class="btn sm ghost" data-x="${k}">Later</button>${k === 'backup' ? '<button class="btn sm ghost" data-never>Don\'t remind me</button>' : ''}`;
+    d.querySelector('[data-never]')?.addEventListener('click', async () => { await store.saveSettings({ backupReminder: false }); d.remove(); toast('Backup reminders off. Turn them back on in Settings → Backup & restore.'); });
     d.querySelector('[data-n]').onclick = async () => {
       if (k === 'update') return applyUpdate(updateInfo.files);
       if (k === 'review') { await store.saveSettings({ reviewAccounts: false }); return currentPath() === '/networth/accounts' ? route() : go('/networth/accounts'); }
@@ -285,6 +289,20 @@ function notices(page, only) {
 
 // Re-render the current view (used after data changes that the view doesn't handle itself)
 export const refresh = () => route();
+
+// ---------- privacy mode: every amount shows as “$•••” ----------
+const EYE = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+const EYE_OFF = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l18 18M10.6 5.1A10.9 10.9 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.1 4M6.6 6.6C3.7 8.4 2 12 2 12s3.6 7 10 7a10 10 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>';
+function paintPrivacy() {
+  const on = !!store.getSettings().privacy;
+  document.body.classList.toggle('privacy', on);
+  $$('[data-privacy]').forEach(b => { b.innerHTML = on ? EYE_OFF : EYE; b.setAttribute('aria-pressed', String(on)); b.classList.toggle('on', on); b.title = on ? 'Show amounts (H)' : 'Hide amounts — privacy mode (H)'; });
+}
+async function togglePrivacy() {
+  await store.saveSettings({ privacy: !store.getSettings().privacy });
+  paintPrivacy();
+  if (!softRoute()) toast(store.getSettings().privacy ? 'Privacy on — the page hides amounts once you close this dialog' : 'Privacy off');
+}
 
 async function boot() {
   try { await store.init(); }
@@ -302,6 +320,9 @@ async function boot() {
   $('#menu-btn').onclick = () => document.body.classList.toggle('nav-open');
   $$('[data-help]').forEach(b => b.onclick = () => openHelp(currentPath()));
   document.addEventListener('keydown', e => { if (e.key === '?' && !e.target.closest('input,textarea,select')) openHelp(currentPath()); });
+  paintPrivacy();
+  $$('[data-privacy]').forEach(b => b.onclick = togglePrivacy);
+  document.addEventListener('keydown', e => { if ((e.key === 'h' || e.key === 'H') && !e.metaKey && !e.ctrlKey && !e.altKey && !e.target.closest('input,textarea,select,[contenteditable]') && !document.querySelector('.modal-wrap')) { e.preventDefault(); togglePrivacy(); } });
   $('#sidebar').addEventListener('click', e => { if (e.target.closest('a')) document.body.classList.remove('nav-open'); });
   // quick add from anywhere: sidebar / top-bar button or the N key
   const quickAdd = async () => { document.body.classList.remove('nav-open'); if (!modeChosen() || document.querySelector('.modal-wrap')) return; if (await txnModal()) route(); };

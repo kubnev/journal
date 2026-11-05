@@ -2,12 +2,13 @@
 // Collections are loaded into memory at startup; writes go through to IDB.
 
 const DB_NAME = 'ledgerline';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 export const COLLECTIONS = [
   'nwAccounts',    // net worth: assets & liabilities
   'nwSnapshots',   // net worth: dated balance snapshots
-  'nwMoves',       // net worth: planned / done transfers between your own accounts
+  'nwMoves',       // legacy: planned transfers (feature removed in v1.4; kept so old backups import)
+  'nwFlows',       // net worth: money you put into / took out of an account (deposits & withdrawals)
   'txns',          // spending: expenses, one record per transaction
   'recurring',     // spending: bills & subscriptions that repeat
   'days',          // journal: one entry per day (id = YYYY-MM-DD)
@@ -35,7 +36,9 @@ export const DEFAULT_SETTINGS = {
     emergencyMonths: 6,
   },
   habits: ['Exercise', 'Outside / walk', 'Read', 'No alcohol', 'Screen off before bed'],
-  nav: { order: [], collapsed: {} },   // sidebar: section order and which sections are collapsed
+  nav: { order: [], collapsed: {} },
+  backupReminder: true,           // weekly “back up” notice
+  privacy: false,                 // hide amounts (for using the app in public)   // sidebar: section order and which sections are collapsed
   dayTags: ['Stressed', 'Calm', 'Social', 'Productive', 'Tired', 'Sick'],
 };
 
@@ -238,6 +241,7 @@ function cleanSettings(s) {
   if (!['auto', 'light', 'dark'].includes(out.theme)) delete out.theme;
   if (!['greenred', 'blueorange'].includes(out.pnlColors)) delete out.pnlColors;
   if (!['simple', 'pro'].includes(out.mode)) delete out.mode;
+  for (const k of ['backupReminder', 'privacy']) if (k in out && typeof out[k] !== 'boolean') delete out[k];
   const strList = v => Array.isArray(v) && v.every(x => typeof x === 'string');
   for (const k of ['payMethods', 'habits', 'dayTags']) if (k in out && !strList(out[k])) delete out[k];
   if ('categories' in out && out.categories !== null && !(Array.isArray(out.categories) && out.categories.every(c => isObj(c) && typeof c.id === 'string' && typeof c.name === 'string' && (c.subs == null || strList(c.subs))))) delete out.categories;

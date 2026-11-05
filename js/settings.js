@@ -74,6 +74,7 @@ export default async function settingsView(el) {
           <div class="row mt">
             <label class="btn">Restore from backup…<input type="file" accept=".json,application/json" data-act="import" hidden></label>
           </div>
+          <label class="check mt"><input type="checkbox" id="bk-remind" ${s.backupReminder !== false ? raw('checked') : ''}> Remind me to back up when the last backup is over a week old</label>
           <p class="small muted mt" style="margin-bottom:0">
             ${counts.nwAccounts} accounts · ${counts.nwSnapshots} balance snapshots · ${counts.txns} expenses · ${counts.recurring} bills & subscriptions · ${counts.days} journal entries
             ${est ? html`<br>Using ${(est.usage / 1048576).toFixed(1)} MB of local storage.` : ''}
@@ -143,6 +144,7 @@ export default async function settingsView(el) {
     toast('Lists saved');
   };
 
+  el.querySelector('#bk-remind').onchange = async e => { await store.saveSettings({ backupReminder: e.target.checked }); toast(e.target.checked ? 'Backup reminders on' : 'Backup reminders off'); };
   el.addEventListener('click', async e => {
     const pick = e.target.closest('[data-pick]')?.dataset.pick;
     if (pick) { if (await switchMode(pick)) { if (pick === 'pro' && store.all('nwAccounts').length) go('/networth/accounts'); else refresh(); } return; }

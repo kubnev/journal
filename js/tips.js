@@ -64,6 +64,14 @@ const F = {
   // ---------- budgets ----------
   'bf:total': 'Your spending limit for a whole month, in the display currency. Leave blank to use the sum of the category limits.',
 
+  // ---------- money in & out ----------
+  'flf:accountId': 'The account the money went into (deposit) or came out of (withdrawal).',
+  'flf:amount': 'How much you moved, as a positive number.',
+  'flf:currency': 'The currency of the transfer. Totals are converted to your display currency at that day’s rate.',
+  'flf:date': 'The day the money moved. The year decides which year it counts in.',
+  'flf:note': 'Anything that helps later, e.g. “monthly ETF buy” or “took profits”.',
+  adjust: 'Adds a deposit to (or takes a withdrawal off) the account’s balance today. Leave it off if you’ll type the new balance on Update balances anyway — otherwise it would count twice until then.',
+
   // ---------- journal ----------
   mood: 'How you feel overall today, from 😣 to 😄.',
   energy: '1 = drained, 5 = full of energy.',

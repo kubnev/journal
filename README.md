@@ -3,11 +3,14 @@
 A private, local-first finance tracker that runs in the browser. Built for people without a steady salary (traders, freelancers): **no income to log** — you update your balances every so often and the app follows your money from those snapshots.
 
 - **Net worth** — every account (bank, savings, exchanges, brokers, wallets, property, debts) grouped by type, valued over time from balance snapshots, with allocation, custody and liquidity analytics.
+- **Money in & out** — log deposits into and withdrawals from brokers, exchanges and other accounts; per year you see what you put in, took out, and what the accounts made on top, with a CSV export for your tax records.
 - **Interest** — what each yield account earns per day / month / year, interest earned since the last update and this year, what debts cost, and cash that earns nothing.
 - **Spending** — log expenses in seconds (button or the `N` key), optionally taking them off an account's balance; budgets, subscriptions & bills.
 - **Journal** — a two-minute daily check-in (mood, energy, stress, sleep, habits) with insights on how you feel vs what you spend.
 
 **First launch:** choose Simple or Pro input → a few *starting estimates* (usual monthly spending, budget, net worth a year ago) → a guided tour on temporary sample data, which is deleted when the tour ends. Figures based on an estimate are marked "estimate" until there's a full calendar month of logged spending.
+
+**Privacy mode** (eye button or the `H` key) hides every amount as “$•••” for using the app in public.
 
 Everything is stored in the browser (IndexedDB). There is no server, no account and no tracking, and backups are password-encrypted.
 
@@ -49,6 +52,17 @@ Net-worth accounts can track individual holdings (quantity × price). **Update p
 
 Each update writes today's snapshot, so the history builds itself.
 
+## Tests
+`tests/e2e.mjs` drives the whole app in Chromium with Playwright (external price and exchange-rate APIs are mocked):
+
+```sh
+python3 -m http.server 8765 &
+node tests/e2e.mjs                 # all test groups
+ONLY='journal|interest' node tests/e2e.mjs   # a subset
+```
+
+Set `PLAYWRIGHT=/path/to/playwright/index.mjs` if Playwright isn't installed where Node can find it.
+
 ## Releasing a new version
 1. Bump `APP_VERSION` in `js/version.js` and add a `CHANGELOG` line.
 2. Run `node scripts/version.mjs "release notes"`. This regenerates `version.json`, which the in-app "Check for app update" reads.
@@ -86,8 +100,9 @@ js/migrate.js            one-time conversion from the trading-journal version
 js/backup.js, crypto.js  password-encrypted backups (AES-256-GCM, PBKDF2)
 js/fx.js                 currencies & exchange rates
 js/spend/                categories, calculations, transaction form, views, CSV
-js/networth/             calculations, live prices, views, interest page, balance adjustments (ledger.js)
+js/networth/             calculations, live prices, views, interest page, money in & out (flows.js), balance adjustments (ledger.js)
 js/journal/              daily check-in, history, insights
+tests/e2e.mjs            end-to-end browser tests
 js/home.js               overview page
 js/mode.js               Simple / Pro input mode
 js/tips.js               "?" help on every field

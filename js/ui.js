@@ -33,8 +33,12 @@ function nf(key, opts) {
   if (!fmtCache.has(k)) fmtCache.set(k, new Intl.NumberFormat(s.locale, opts()));
   return fmtCache.get(k);
 }
+// Privacy mode: amounts become “$•••” everywhere (pages, charts, tooltips), keeping only the currency sign
+export const privacyOn = () => !!getSettings().privacy;
+export const maskMoney = f => { let done = false; return f.formatToParts(1).map(p => (p.type === 'currency' || p.type === 'literal' ? p.value : done ? '' : (done = true, '•••'))).join('').trim(); };
 export function money(v, { sign = false, compact = false, decimals } = {}) {
   if (v == null || !isFinite(v)) return '—';
+  if (privacyOn()) { const cur0 = getSettings().currency === 'USDT' ? 'USD' : getSettings().currency || 'USD'; return maskMoney(nf('mask', () => ({ style: 'currency', currency: cur0, maximumFractionDigits: 0 }))); }
   const cur = getSettings().currency === 'USDT' ? 'USD' : getSettings().currency || 'USD';
   const d = decimals ?? (compact ? 1 : Math.abs(v) >= 1000 ? 0 : 2);
   const f = nf(`m${compact}${d}`, () => ({ style: 'currency', currency: cur, notation: compact ? 'compact' : 'standard', minimumFractionDigits: compact ? 0 : d, maximumFractionDigits: d }));

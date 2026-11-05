@@ -1,6 +1,6 @@
 {
-  "version": "1.5.4",
-  "notes": "Clearer net-worth chart dates and scale.",
+  "version": "1.6.0",
+  "notes": "Money in & out; privacy mode; backup reminder opt-out.",
   "files": [
     "css/app.css",
     "js/backup.js",
@@ -16,6 +16,7 @@
     "js/migrate.js",
     "js/mode.js",
     "js/networth/calc.js",
+    "js/networth/flows.js",
     "js/networth/interest.js",
     "js/networth/ledger.js",
     "js/networth/prices.js",

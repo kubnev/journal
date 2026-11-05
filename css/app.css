@@ -144,7 +144,7 @@ kbd { font: 11px ui-monospace, monospace; background: var(--surface-2); border: 
 .nav a.active, .sidebar-foot a.active { background: var(--accent-soft); color: var(--accent); }
 .sidebar-foot { margin-top: auto; display: flex; flex-direction: column; gap: 2px; }
 
-.page > .page-head:first-child, .page > .notice:first-child { margin-right: 46px; }
+.page > .page-head:first-child, .page > .notice:first-child { margin-right: 92px; }
 .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 18px; flex-wrap: wrap; }
 .page-head .sub { color: var(--text-3); margin-top: 4px; }
 .page-head .actions { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -575,3 +575,13 @@ details.fold > summary { cursor: pointer; font-family: var(--font-serif); font-w
 .week-strip a.on { background: var(--accent-soft); }
 .wk-mood { font-size: 18px; line-height: 1.2; }
 @media (max-width: 1100px) { .journal-side { position: static; } }
+
+/* privacy mode */
+.privacy-fixed { position: fixed; top: 16px; right: 62px; z-index: 25; }
+.privacy-btn.on { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+body.privacy #main input[type=number], body.privacy .modal-wrap input[type=number] { filter: blur(5px); transition: filter .15s; }
+body.privacy #main input[type=number]:focus, body.privacy .modal-wrap input[type=number]:focus { filter: none; }
+@media (max-width: 900px) { .privacy-fixed { display: none; } }
+.flow-row { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; gap: 10px; align-items: baseline; padding: 8px 4px; border: 0; border-bottom: 1px solid var(--border); background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; width: 100%; }
+.flow-row:hover { background: var(--surface-2); }
+.flow-row b { font-variant-numeric: tabular-nums; }
