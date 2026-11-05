@@ -11,7 +11,7 @@ A private, local-first finance tracker that runs in the browser. Built for peopl
 
 Everything is stored in the browser (IndexedDB). There is no server, no account and no tracking, and backups are password-encrypted.
 
-**Live:** https://kubnev.github.io/Trading-journal/
+**Live:** https://kubnev.github.io/journal/
 
 ## Net worth
 Six simple account types (Savings, Investments, Trading capital, Assets, Cash, Debt), or detailed categories in Pro mode.
@@ -36,7 +36,7 @@ Chosen on first launch and changeable in Settings. The mode only changes **how m
 Every account, transaction and bill keeps its own currency. Totals are converted to the display currency using ECB reference rates (via Frankfurter, with Coinbase as fallback), at the rate of each transaction's or snapshot's date.
 
 ## The old trading-journal version
-The full previous app (trading journal, daily journal and net worth) is preserved on the branch [`archive/trading-journal-v0.7.1`](https://github.com/kubnev/Trading-journal/tree/archive/trading-journal-v0.7.1). Use *Code → Download ZIP* on that branch to get it. Data from that version is converted automatically:
+The full previous app (trading journal, daily journal and net worth) is preserved on the branch [`archive/trading-journal-v0.7.1`](https://github.com/kubnev/journal/tree/archive/trading-journal-v0.7.1). Use *Code → Download ZIP* on that branch to get it. Data from that version is converted automatically:
 - Net-worth accounts that were linked to a trading account become normal accounts holding their value at the time of conversion.
 - Monthly cash-flow totals become spending entries (income is not tracked).
 - Old journal entries are shown again in the Journal. Old trades stay untouched in the browser database; they're not shown, and "Delete all data" removes them.
