@@ -404,6 +404,14 @@ details.fold > summary { cursor: pointer; font-family: var(--font-serif); font-w
 .mode-lead { color: var(--text-2); font-size: 14px; }
 .mode-card ul { margin: 6px 0 0; padding-left: 18px; color: var(--text-3); font-size: 13px; line-height: 1.5; }
 .mode-cards.compact .mode-card ul { font-size: 12.5px; }
+.tour-pick { display: flex; align-items: center; gap: 16px; width: 100%; margin: 0 0 16px; padding: 16px 18px; border: 1px dashed var(--border-strong); border-radius: 12px; background: var(--surface-2); color: var(--text-1); font: inherit; text-align: left; cursor: pointer; transition: border-color .15s, background .15s; }
+.tour-pick:hover { border-color: var(--accent); border-style: solid; background: var(--accent-soft); }
+.tour-pick:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tour-pick-ic { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 13px; padding-left: 2px; }
+.tour-pick-text { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
+.tour-pick .mode-title { font-size: 18px; }
+.tour-pick-go { flex: none; color: var(--accent); font-weight: 600; font-size: 14px; white-space: nowrap; }
+@media (max-width: 560px) { .tour-pick { flex-wrap: wrap; } .tour-pick-go { width: 100%; padding-left: 56px; } }
 .mode-badge { font-size: 11.5px; color: var(--text-3); padding: 6px 10px 0; }
 .mode-badge b { color: var(--text-2); font-weight: 600; }
 .mode-badge a, .sidebar-foot .mode-badge a { display: inline; padding: 0; margin: 0; font-size: inherit; font-weight: 400; background: none; color: var(--text-3); text-decoration: underline; }

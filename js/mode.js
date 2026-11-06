@@ -30,18 +30,28 @@ const card = (m, id, current) => html`<button type="button" class="mode-card ${c
 export const modeChosen = () => !!store.getSettings().modeChosen;
 export const modeName = () => (store.getSettings().mode === 'pro' ? 'Pro' : 'Simple');
 
-// First launch: a deliberate choice
+// First launch: a deliberate choice, or the tour first
 export function chooserView(el, onDone) {
   el.innerHTML = String(html`<div class="mode-choose">
-    ${!['nwAccounts', 'txns'].some(c => store.all(c).length) ? html`<div class="small muted">Step 1 of 3</div>` : ''}
     <h1>How do you want to enter your data?</h1>
     <p class="muted">Both show every chart, report and analysis. The difference is how much detail you fill in when you add an account or an expense. You can change this later in Settings.</p>
     <div class="mode-cards">${card(SIMPLE, 'simple')}${card(PRO, 'pro')}</div>
+    <button type="button" class="tour-pick" data-tour-pick>
+      <span class="tour-pick-ic" aria-hidden="true">▶</span>
+      <span class="tour-pick-text"><span class="mode-title">Show me around first</span><span class="mode-lead">A 1-minute tour of every page on sample data, removed when it ends. Starts in Simple — switch any time.</span></span>
+      <span class="tour-pick-go" aria-hidden="true">Start tour →</span>
+    </button>
     <p class="small muted">Not sure? Pick Simple — you can upgrade any time without losing anything.</p></div>`);
   el.querySelectorAll('[data-pick]').forEach(b => b.onclick = async () => {
     await store.saveSettings({ mode: b.dataset.pick, modeChosen: true });
     onDone();
   });
+  el.querySelector('[data-tour-pick]').onclick = async () => {
+    await store.saveSettings({ mode: 'simple', modeChosen: true });
+    location.hash = '#/';
+    onDone();
+    (await import('./tour.js')).startTour();
+  };
 }
 
 // Settings card
