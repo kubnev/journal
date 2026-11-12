@@ -128,21 +128,28 @@ export function nwSeries() {
 }
 
 // ---------- usual spending ----------
-// Your usual monthly spending, from what you've actually logged: everything over the last 90 days
-// (or since your first expense) scaled to an average month. Needs at least a week of logging;
-// before that there's no number at all.
+// Your usual monthly spending. First choice: what you've logged lately — the last 90 days (or since
+// you started logging again after a break of over a month), once that covers at least a week and
+// you're still logging. Otherwise the amount you set in Settings. Otherwise nothing.
 export const MIN_DAYS = 7;
+const GAP = 30;   // a month without any expense counts as having stopped logging
 export function baseline() {
-  const t = today();
+  const t = today(), tk = parseDay(t);
   const ex = all('txns').filter(x => !x.exclude && x.date && x.type !== 'income' && x.date <= t);
-  const first = ex.map(x => x.date).sort()[0];
-  const days = first ? Math.round((parseDay(t) - parseDay(first)) / 864e5) + 1 : 0;
-  if (days < MIN_DAYS) return { avgExpenses: null, days, enough: false };
-  const span = Math.min(days, 90);
-  const from = new Date(parseDay(t).getTime() - (span - 1) * 864e5);
-  const fromKey = dayKey(from);
-  const total = ex.filter(x => x.date >= fromKey).reduce((a, x) => a + toDisplay(+x.amount || 0, ccyOf(x), x.date), 0);
-  return { avgExpenses: (total / span) * (365 / 12), days, enough: true };
+  const dates = [...new Set(ex.map(x => x.date))].sort().reverse();
+  const gap = (a, b) => Math.round((parseDay(a) - parseDay(b)) / 864e5);
+  let start = null;
+  if (dates.length && gap(t, dates[0]) <= GAP) { start = dates[0]; for (const d of dates.slice(1)) { if (gap(start, d) > GAP) break; start = d; } }
+  const days = start ? gap(t, start) + 1 : 0;
+  if (days >= MIN_DAYS) {
+    const span = Math.min(days, 90);
+    const fromKey = dayKey(new Date(tk.getTime() - (span - 1) * 864e5));
+    const total = ex.filter(x => x.date >= fromKey).reduce((a, x) => a + toDisplay(+x.amount || 0, ccyOf(x), x.date), 0);
+    return { avgExpenses: (total / span) * (365 / 12), days, enough: true, source: 'logged' };
+  }
+  const set = +getSettings().plan?.usualSpending;
+  if (set > 0) return { avgExpenses: set, days, enough: true, source: 'set' };
+  return { avgExpenses: null, days, enough: false, source: null };
 }
 
 // change in net worth between consecutive balance updates

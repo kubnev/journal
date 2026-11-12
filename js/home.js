@@ -69,9 +69,9 @@ export default async function home(el) {
           : html`<p class="small muted">Add accounts to see where most of your money is.</p>`}</div>
       <div class="card"><div class="card-head"><h2>Cash runway</h2></div>
         ${efMonths != null ? html`<div class="stat-value">${num(efMonths, 1)} months</div>
-          <p class="small muted" style="margin:4px 0 0">Cash & savings cover this many months of your usual spending (${money(base.avgExpenses)} / month, from what you've logged).</p>
+          <p class="small muted" style="margin:4px 0 0">Cash & savings cover this many months of your usual spending (${money(base.avgExpenses)} / month, ${base.source === 'set' ? html`the amount you set in <a href="#/settings">Settings</a>` : 'from what you’ve logged'}).</p>
           <div class="budget-bar mt"><span class="${efMonths < 3 ? 'over' : efMonths < target ? 'warn' : ''}" style="width:${Math.min(100, (efMonths / target) * 100)}%"></span></div><div class="small muted">target ${target} months</div>`
-          : html`<div class="not-enough"><b>Not enough data yet</b><span>Log a week of spending and this shows how many months your cash & savings would last.</span></div>`}</div>
+          : html`<div class="not-enough"><b>Not enough data yet</b><span>Log a week of spending — or set your usual monthly spending in <a href="#/settings">Settings</a> — and this shows how many months your cash & savings would last.</span></div>`}</div>
       <div class="card" data-tour="journal-mini"><div class="card-head"><h2>Journal</h2><a class="hint" href="#/journal">${jToday ? 'Today →' : 'Write →'}</a></div>
         ${jToday ? html`<div class="stat-value">${jToday.mood ? MOODS[jToday.mood - 1] : '✎'}</div><p class="small muted" style="margin:4px 0 0">${(jToday.mind || jToday.recap || 'Checked in today.').slice(0, 90)}</p>`
           : html`<p class="small muted">How are you today? A two-minute check-in — mood, energy, stress, sleep.</p><a class="btn sm" href="#/journal">Check in</a>`}

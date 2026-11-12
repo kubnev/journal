@@ -1,8 +1,9 @@
 // App version + "check for update". The site is static, so an update means: fetch version.json
 // fresh, and if it's newer, re-download every app file into the browser cache and reload.
-export const APP_VERSION = '2.0.1';
+export const APP_VERSION = '2.0.2';
 
 export const CHANGELOG = [
+  ['2.0.2', 'Settings → Usual monthly spending: used for cash runway and your usual month whenever there is no recent logged spending; your real average takes over once you log a week again.'],
   ['2.0.1', 'The first screen offers a 1-minute tour next to Simple and Pro.'],
   ['2.0.0', 'Journal. Balances are updated right on Accounts & holdings (Update next to each account, or Update all), and every update is kept as history. Interest is an estimate on the Net worth page; balances no longer grow on their own. No more starting estimates: where there is not enough data yet, the app says so. Averages and cash runway need just a week of logged spending.'],
 ];

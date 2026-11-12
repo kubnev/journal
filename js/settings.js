@@ -38,6 +38,7 @@ export default async function settingsView(el) {
                 <option value="blueorange" ${s.pnlColors === 'blueorange' ? raw('selected') : ''}>Blue / orange (colour-blind friendly)</option>
               </select>
             </label>
+            <label class="field">Usual monthly spending <span class="hint">in ${s.currency} — only used when there's no recent logged spending</span><input name="usualSpending" type="number" min="0" step="any" value="${s.plan?.usualSpending || ''}" placeholder="optional"></label>
             <label class="field">Cash runway target <span class="hint">months of spending</span><input name="emergencyMonths" type="number" min="1" max="36" step="1" value="${s.plan?.emergencyMonths || 6}"></label>
             <label class="field">Theme
               <select name="theme"><option value="auto" ${s.theme === 'auto' ? raw('selected') : ''}>Auto (match system)</option><option value="dark" ${s.theme === 'dark' ? raw('selected') : ''}>Dark</option><option value="light" ${s.theme === 'light' ? raw('selected') : ''}>Light</option></select>
@@ -115,7 +116,7 @@ export default async function settingsView(el) {
   el.querySelector('#prefs').onsubmit = async e => {
     e.preventDefault();
     const f = formData(e.target);
-    await store.saveSettings({ currency: f.currency, locale: f.locale || undefined, pnlColors: f.pnlColors, theme: f.theme, plan: { emergencyMonths: Math.min(36, Math.max(1, Math.round(+f.emergencyMonths) || 6)) } });
+    await store.saveSettings({ currency: f.currency, locale: f.locale || undefined, pnlColors: f.pnlColors, theme: f.theme, plan: { emergencyMonths: Math.min(36, Math.max(1, Math.round(+f.emergencyMonths) || 6)), usualSpending: +f.usualSpending > 0 ? +f.usualSpending : null } });
     await refreshRates().catch(() => {});
     toast('Preferences saved'); refresh();
   };

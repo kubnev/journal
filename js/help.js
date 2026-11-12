@@ -13,7 +13,7 @@ const GUIDE = [
     <ul><li><b>Change per update</b> — how much net worth moved between balance updates.</li>
     <li><b>Interest</b> — what accounts with an APY would earn per day, month and year at today's balances. Only an estimate: nothing is added to your balances.</li>
     <li><b>Liquid net worth</b> counts only what you could reach in days, minus all debts.</li>
-    <li><b>Cash runway</b> — how many months your cash and savings cover your usual spending (needs a week of logged spending).</li>
+    <li><b>Cash runway</b> — how many months your cash and savings cover your usual spending (from your recent logged spending, or the usual monthly spending you set in Settings).</li>
     <li>The range buttons (1Y/3Y/5Y) zoom the charts. With a single update the trend charts wait for your second one.</li></ul>` },
   { id: 'accounts', title: 'Accounts & holdings', match: p => p === '/networth/accounts', body: `
     <p>Every asset and debt, grouped by type (Savings, Investments, Trading capital, Assets, Cash, Debt — or the detailed categories in Pro input). Each group shows its total and share of your assets; the chips at the top jump to a group.</p>
@@ -41,7 +41,7 @@ const GUIDE = [
   { id: 'spending', title: 'Spending', match: p => p === '/spending', body: `
     <p>Month-by-month view of where your money goes. Use ← → to move between months.</p>
     <ul><li><b>Spending through the month</b> — cumulative spending vs last month and your budget pace.</li>
-    <li><b>Usual month</b> — your average monthly spending from the last 90 days (once you've logged at least a week).</li>
+    <li><b>Usual month</b> — your average monthly spending from what you've logged lately (up to 90 days, at least a week). With no recent spending it uses the amount set in Settings.</li>
     <li><b>Projected month-end</b> = spent so far + your average daily spend for the remaining days + bills still due. Shown from day 7 of the month.</li>
     <li><b>Needs vs wants</b> — how this month's spending splits. Each category is a need or a want — change it on Categories.</li></ul>` },
   { id: 'transactions', title: 'Transactions', match: p => p === '/spending/transactions', body: `

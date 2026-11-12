@@ -22,6 +22,7 @@ const F = {
   'nf:notes': 'Anything you want to remember about this account.',
   d: 'The date you closed it. From this date the account counts as zero; history before it is kept.',
 
+  usualSpending: 'What you normally spend in a month. Used for cash runway and your usual month only while there’s no recent logged spending — as soon as you log a week of it, your real average takes over.',
   emergencyMonths: 'How many months of spending you want to keep in cash and savings. 3–6 is the usual target.',
 
             // ---------- transactions ----------

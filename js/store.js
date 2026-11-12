@@ -31,7 +31,7 @@ export const DEFAULT_SETTINGS = {
   budgets: { total: 0, byCat: {} },   // monthly limits in the display currency
   payMethods: ['Debit card', 'Credit card', 'Cash', 'Bank transfer', 'Phone wallet'],
   tour: { done: false },
-  plan: { targetAllocation: {}, emergencyMonths: 6 },
+  plan: { targetAllocation: {}, emergencyMonths: 6, usualSpending: null },
   habits: ['Exercise', 'Outside / walk', 'Read', 'No alcohol', 'Screen off before bed'],
   dayTags: ['Stressed', 'Calm', 'Social', 'Productive', 'Tired', 'Sick'],
   nav: { order: [], collapsed: {} },  // sidebar: section order and folded sections

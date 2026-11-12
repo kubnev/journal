@@ -57,7 +57,8 @@ export function monthSummary(m = currentMonth()) {
   const needs = ex.filter(t => kindOf(t) === 'need').reduce((s, t) => s + val(t), 0);
   const wants = spent - needs;
   const biggest = [...ex].sort((a, b2) => val(b2) - val(a))[0] || null;
-  return { m, usualSpending: baseline().avgExpenses, spent, n, dayNow, daily, noSpend, avgDay, projected, due, budget: b.total, left, safeToday, daysLeft, needs, wants, count: ex.length, biggest, ex };
+  const bl = baseline();
+  return { m, usualSpending: bl.avgExpenses, usualSource: bl.source, spent, n, dayNow, daily, noSpend, avgDay, projected, due, budget: b.total, left, safeToday, daysLeft, needs, wants, count: ex.length, biggest, ex };
 }
 
 // same point in the previous month, for "vs last month"
