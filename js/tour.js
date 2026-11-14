@@ -8,10 +8,12 @@ const STEPS = [
   { title: 'Welcome to Journal', text: 'A private tracker for <b>what you own</b>, <b>where your money goes</b> and a short daily journal. This tour uses <b>sample data</b> so every chart has something in it; it\'s deleted when the tour ends.' },
   { route: '/', sel: '[data-tour=nw-stats]', title: 'Your money at a glance', text: 'Net worth and how it changed, what you could reach within days (liquid net worth) and an estimate of the interest your accounts earn.' },
   { route: '/', sel: '[data-tour=nw-chart]', title: 'Updates build the trend', text: 'Each time you update a balance, that day is kept as history and the line grows. Every few weeks or monthly is plenty.' },
-  { route: '/networth/accounts', sel: '.acct-group', up: null, title: 'Accounts & holdings', text: 'Everything you own and owe, grouped by type. Each account keeps its own currency; crypto and stocks can list holdings with live prices.' },
-  { route: '/networth/accounts', sel: '[data-upd]', title: 'Update a balance', text: '<b>Update</b> records today\'s value and keeps the old one as history. <b>Edit</b> changes the account itself (name, type, APY). <b>Update all</b> does every account at once.' },
-  { route: '/networth', sel: '[data-tour=interest]', title: 'Interest — estimated', text: 'What your accounts would earn per day, month and year at their APY, and what your debts cost. Balances never change on their own — you update them.' },
-  { route: '/networth/analytics', sel: '[data-tour=health]', title: 'Analytics', text: 'Where your money is held, what it\'s for, how liquid and concentrated it is, and your target allocation.' },
+  { route: '/networth/accounts', sel: '.acct-group', up: null, title: 'Accounts', text: 'Everything you own and owe, grouped by type: savings, bills and bonds, investments, things you own, cash and debts. Each account keeps its own currency.' },
+  { route: '/networth/accounts', sel: '[data-upd]', title: 'Update a balance', text: '<b>Update</b> records today\'s value and keeps the old one as history. <b>Edit</b> changes the account itself (name, type, interest rate, maturity date). <b>Update all</b> does every account at once.' },
+  { route: '/networth/withdrawals', sel: '#main .stats', title: 'Withdrawals', text: 'Log money when you move it out of a broker, an exchange or a business into your real accounts. You see how much came out per month and year — and whether you spent more or less than you withdrew.' },
+  { route: '/networth', sel: '[data-tour=moved]', title: 'What moved your net worth', text: 'Between two balance updates: what you withdrew, what you spent, and everything else — interest, value changes and anything that wasn\'t logged.' },
+  { route: '/networth', sel: '[data-tour=interest]', title: 'Interest and maturities', text: 'What your accounts would earn per day, month and year at their rate, and below it which term deposits, bills and bonds mature next. Balances never change on their own — you update them.' },
+  { route: '/networth/analytics', sel: '[data-tour=health]', title: 'Insights', text: 'Who holds your money, how much sits at one bank compared with the deposit guarantee, how fast you could reach it, and your target allocation.' },
   { route: '/spending', sel: '#s-pace', up: '.card', title: 'Spending, month by month', text: 'Spending through the month vs last month and your budget. A month-end projection appears from day 7.' },
   { route: '/spending', sel: '.topbar [data-quick-add], [data-tour=add]', title: 'Log an expense in seconds', text: 'Amount, category, done — from any page with this button or the <kbd>N</kbd> key. Optionally take it off the account it was paid from.' },
   { route: '/spending/recurring', sel: '#main .tabs', title: 'Subscriptions & bills', text: 'Each subscription with the day it\'s charged — added automatically, with monthly and yearly totals.' },
@@ -22,7 +24,7 @@ const STEPS = [
 ];
 
 let tourEl = null, step = 0, withDemo = false, token = 0;
-const hasOwnData = () => ['nwAccounts', 'txns', 'recurring', 'nwSnapshots', 'nwFlows', 'days'].some(c => store.all(c).some(x => !x.demo));
+const hasOwnData = () => ['nwAccounts', 'txns', 'recurring', 'nwSnapshots', 'withdrawals', 'days'].some(c => store.all(c).some(x => !x.demo));
 
 export async function startTour({ demo = true } = {}) {
   await endTour({ silent: true });

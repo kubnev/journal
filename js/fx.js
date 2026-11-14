@@ -1,11 +1,10 @@
 // Multi-currency support. Every account / cash-flow entry keeps its own (native) currency;
 // totals, charts and dashboards are converted into the display currency chosen in Settings.
-// Rates: ECB reference rates via Frankfurter (daily history), Coinbase as fallback for the latest
-// rate of currencies the ECB doesn't publish. Rates are cached locally so the app works offline.
+// Rates: ECB reference rates via Frankfurter (daily history), cached locally so the app works offline.
 import * as store from './store.js';
 import { maskMoney } from './ui.js';
 
-export const CURRENCIES = ['USD', 'EUR', 'GBP', 'CHF', 'JPY', 'CAD', 'AUD', 'NZD', 'SEK', 'NOK', 'DKK', 'PLN', 'CZK', 'RON', 'HUF', 'TRY', 'INR', 'SGD', 'HKD', 'CNY', 'ZAR', 'BRL', 'MXN', 'AED', 'SAR', 'USDT'];
+export const CURRENCIES = ['USD', 'EUR', 'GBP', 'CHF', 'JPY', 'CAD', 'AUD', 'NZD', 'SEK', 'NOK', 'DKK', 'PLN', 'CZK', 'RON', 'HUF', 'TRY', 'INR', 'SGD', 'HKD', 'CNY', 'ZAR', 'BRL', 'MXN', 'AED', 'SAR'];
 const USD_LIKE = new Set(['USD', 'USDT']);
 // Currencies the ECB publishes (Frankfurter rejects a request that names any other symbol)
 const ECB = new Set(['EUR', 'GBP', 'CHF', 'JPY', 'CAD', 'AUD', 'NZD', 'SEK', 'NOK', 'DKK', 'PLN', 'CZK', 'RON', 'HUF', 'TRY', 'INR', 'SGD', 'HKD', 'CNY', 'ZAR', 'BRL', 'MXN']);
@@ -93,17 +92,10 @@ async function doRefresh({ force = false } = {}) {
   const histOk = !start || !ecb.length || (histFrom && histFrom <= start && ecb.every(c => Object.values(st.history).some(r => r[c])));
   if (fresh && histOk && !force) return { ok: true, skipped: true };
   const latest = { ...(st.latest || {}) }, history = { ...(st.history || {}) }, errors = [];
-  let ecbOk = !ecb.length;
   if (ecb.length) try {
     const j = await getJSON(`https://api.frankfurter.dev/v1/latest?base=USD&symbols=${ecb.join(',')}`);
-    Object.assign(latest, j.rates || {}); ecbOk = true;
+    Object.assign(latest, j.rates || {});
   } catch (e) { errors.push('ECB rates: ' + e.message); }
-  // non-ECB currencies always, and everything if the ECB request failed
-  const missing = need.filter(c => !ECB.has(c) || !ecbOk || !latest[c]);
-  if (missing.length) {
-    try { const j = await getJSON('https://api.coinbase.com/v2/exchange-rates?currency=USD'); for (const c of missing) if (+j?.data?.rates?.[c]) latest[c] = +j.data.rates[c]; }
-    catch (e) { errors.push('Coinbase rates: ' + e.message); }
-  }
   if (start && ecb.length && (!histOk || force)) {
     try {
       const j = await getJSON(`https://api.frankfurter.dev/v1/${start}..?base=USD&symbols=${ecb.join(',')}`);

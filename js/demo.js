@@ -3,11 +3,10 @@
 // without touching real entries.
 import * as store from './store.js';
 import { dayKey, monthKey } from './ui.js';
-import { holdingsTotal } from './networth/prices.js';
 import { nextDate } from './spend/calc.js';
 
 function rng(seed) { return () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
-const COLS = ['nwAccounts', 'nwSnapshots', 'nwFlows', 'txns', 'recurring', 'days'];
+const COLS = ['nwAccounts', 'nwSnapshots', 'withdrawals', 'txns', 'recurring', 'days'];
 
 export const hasDemo = () => COLS.some(c => store.all(c).some(x => x.demo));
 export async function removeDemo() {
@@ -38,7 +37,7 @@ export async function loadDemo() {
     RC('Netflix', 15.99, 'subscriptions', 9, { sub: 'Streaming', method: 'Credit card' }),
     RC('Spotify', 10.99, 'subscriptions', 21, { sub: 'Streaming', method: 'Credit card' }),
     RC('iCloud', 2.99, 'subscriptions', 17, { sub: 'Software & apps', method: 'Phone wallet' }),
-    RC('TradingView', 179, 'subscriptions', 14, { sub: 'Software & apps', method: 'Credit card', freq: 'yearly' }),
+    RC('Cloud storage', 99, 'subscriptions', 14, { sub: 'Software & apps', method: 'Credit card', freq: 'yearly' }),
     RC('Car insurance', 210, 'transport', 20, { sub: 'Car insurance', method: 'Bank transfer', freq: 'quarterly' }),
   ];
   const txns = [];
@@ -78,7 +77,7 @@ export async function loadDemo() {
   T(`${mk(1)}-22`, 'expense', 60, 'fees', 'Parking fine', { sub: 'Fines', method: 'Debit card' });
   // ---------------- journal: seven weeks of check-ins ----------------
   // low-mood / stressed days come with a little extra impulse spending, so Insights has a pattern to show
-  const MIND = ['Busy week, but on top of it.', 'Markets were choppy — stayed out mostly.', 'Slept badly, felt foggy all day.', 'Good talk with an old friend.', 'Worried about the car repair cost.', 'Productive morning, lazy afternoon.', 'Felt restless — bought stuff I didn\'t need.', 'Long walk, cleared my head.', 'Family dinner, nice evening.', 'Too much screen time today.'];
+  const MIND = ['Busy week, but on top of it.', 'Quiet day, got the paperwork done.', 'Slept badly, felt foggy all day.', 'Good talk with an old friend.', 'Worried about the car repair cost.', 'Productive morning, lazy afternoon.', 'Felt restless — bought stuff I didn\'t need.', 'Long walk, cleared my head.', 'Family dinner, nice evening.', 'Too much screen time today.'];
   const HAB = ['Exercise', 'Outside / walk', 'Read', 'No alcohol', 'Screen off before bed'];
   const days = [];
   const clamp = x => Math.max(1, Math.min(5, Math.round(x)));
@@ -87,7 +86,7 @@ export async function loadDemo() {
     if (R() < 0.2) continue;
     const mood = clamp(3.4 + normal() * 1.05), stress = clamp(5.6 - mood + normal() * 0.8), sleep = Math.round(Math.max(4.5, Math.min(9, 7 + normal() * 0.9 + (mood - 3) * 0.3)) * 2) / 2;
     days.push({ id: k, demo: true, mood, stress, energy: clamp(mood + normal() * 0.7), sleep,
-      mind: pick(MIND), habits: Object.fromEntries(HAB.map(h => [h, R() < (mood >= 4 ? 0.7 : 0.35)])), lesson: R() < 0.25 ? pick(['Wait a day before buying anything big.', 'Go to bed before midnight.', 'Walk before checking the charts.', 'Fewer coffees after 2pm.']) : '' });
+      mind: pick(MIND), habits: Object.fromEntries(HAB.map(h => [h, R() < (mood >= 4 ? 0.7 : 0.35)])), lesson: R() < 0.25 ? pick(['Wait a day before buying anything big.', 'Go to bed before midnight.', 'Walk before opening the laptop.', 'Fewer coffees after 2pm.']) : '' });
     if (stress >= 4 || mood <= 2) { const [m, sub] = pick(SHOP); T(k, 'expense', between(35, 140), 'shopping', sub, { merchant: m, sub, method: 'Credit card', kind: 'want', note: 'Impulse buy' }); }
   }
   await store.putMany('recurring', bills);
@@ -97,75 +96,64 @@ export async function loadDemo() {
     await store.saveSettings({ budgets: { total: 2300, byCat: { groceries: 350, dining: 250, transport: 200, shopping: 150, fun: 100, subscriptions: 60 } }, demoBudgets: true });
   }
 
-  // ---------------- net worth ----------------
+  // ---------------- net worth: real money only ----------------
   const A = (name, kind, category, extra = {}) => ({ id: id(), demo: true, name, kind, category, ...extra });
+  const inMonths = (m, day) => dayKey(new Date(now.getFullYear(), now.getMonth() + m, day));
   const nw = {
-    checking: A('Checking', 'asset', 'cash', { currency: 'EUR', institution: 'Bank', custody: 'bank', purpose: 'Spending' }),
-    hysa: A('High-yield savings', 'asset', 'savings', { currency: 'EUR', institution: 'Online bank', custody: 'bank', purpose: 'Emergency fund', apy: 2.75 }),
-    mmf: A('Money-market fund', 'asset', 'savings', { currency: 'USD', institution: 'Broker', custody: 'broker', purpose: 'Short-term goals', apy: 4.6, liquid: true }),
-    etf: A('ETF portfolio', 'asset', 'brokerage', { currency: 'USD', institution: 'Broker', custody: 'broker', purpose: 'Long-term investing' }),
-    pension: A('Pension fund', 'asset', 'retirement', { currency: 'EUR', institution: 'Pension', custody: 'broker', purpose: 'Retirement' }),
-    cexAcc: A('Exchange spot', 'asset', 'crypto', { currency: 'USD', institution: 'Exchange', custody: 'cex', purpose: 'Crypto', tracksHoldings: true, holdings: [
-      { id: id(), type: 'crypto', symbol: 'SOL', qty: 18, price: 150, cost: 2100, priceSource: 'demo', priceAt: now.toISOString() },
-      { id: id(), type: 'crypto', symbol: 'LINK', qty: 140, price: 14, cost: 1650, priceSource: 'demo', priceAt: now.toISOString() },
-      { id: id(), type: 'crypto', symbol: 'USDC', qty: 2500, price: 1, cost: 2500, priceSource: 'demo', priceAt: now.toISOString() },
-    ] }),
-    cold: A('Cold wallet (BTC)', 'asset', 'crypto', { currency: 'USD', institution: 'Hardware wallet', custody: 'self', purpose: 'Long-term investing', tracksHoldings: true, holdings: [
-      { id: id(), type: 'crypto', symbol: 'BTC', qty: 0.12, price: 68000, cost: 4200, priceSource: 'demo', priceAt: now.toISOString() },
-    ] }),
-    defi: A('Staked ETH', 'asset', 'crypto', { currency: 'USD', institution: 'Staking protocol', custody: 'dex', purpose: 'Crypto', apy: 3.1 }),
-    trading: A('Swing trading capital', 'asset', 'trading', { currency: 'USD', institution: 'Broker', custody: 'broker', purpose: 'Trading capital' }),
-    bybit: A('Futures exchange', 'asset', 'trading', { currency: 'USDT', institution: 'Exchange', custody: 'cex', purpose: 'Trading capital' }),
-    home: A('Apartment', 'asset', 'realestate', { currency: 'EUR', purpose: 'Home & property' }),
+    checking: A('Current account', 'asset', 'cash', { currency: 'EUR', institution: 'Main bank' }),
+    cashHome: A('Cash at home', 'asset', 'cash', { currency: 'EUR', custody: 'physical' }),
+    hysa: A('High-yield savings', 'asset', 'savings', { currency: 'EUR', institution: 'Online bank', apy: 2.75 }),
+    mmf: A('Money-market fund', 'asset', 'savings', { currency: 'USD', institution: 'Broker', custody: 'broker', purpose: 'Safe reserve', apy: 4.6 }),
+    deposit: A('Term deposit, 12 months', 'asset', 'deposit', { currency: 'EUR', institution: 'Main bank', apy: 3.1, maturity: inMonths(5, 14) }),
+    bill: A('Treasury bill, 6 months', 'asset', 'bonds', { currency: 'EUR', custody: 'state', apy: 2.9, maturity: dayKey(new Date(now.getTime() + 24 * 864e5)) }),
+    bond: A('Government bond', 'asset', 'bonds', { currency: 'EUR', custody: 'state', apy: 3.3, maturity: inMonths(31, 1) }),
+    pension: A('Pension fund', 'asset', 'retirement', { currency: 'EUR' }),
+    home: A('Apartment', 'asset', 'realestate', { currency: 'EUR' }),
     car: A('Car', 'asset', 'vehicle', { currency: 'EUR' }),
-    mortgage: A('Mortgage', 'liability', 'mortgage', { currency: 'EUR', institution: 'Bank', rate: 3.4, payment: 820 }),
+    gold: A('Gold coins', 'asset', 'valuables', { currency: 'EUR' }),
+    mortgage: A('Mortgage', 'liability', 'mortgage', { currency: 'EUR', institution: 'Main bank', rate: 3.4, payment: 820 }),
     cc: A('Credit card', 'liability', 'credit', { currency: 'EUR', institution: 'Card issuer', rate: 21 }),
   };
+  // withdrawals from a broker and an exchange over the months that also have spending logged
+  const wds = [], wdBy = {};
+  for (let i = 5; i >= 0; i--) {
+    const add = (day, source, amount, note) => { const date = inMonths(-i, day); if (date > todayK) return; wds.push({ id: id(), demo: true, date, amount, currency: 'EUR', source, accountId: nw.checking.id, note, applied: null }); wdBy[i] = (wdBy[i] || 0) + amount; };
+    add(5, 'Broker', Math.round(between(3800, 6200) / 100) * 100, 'Monthly living money');
+    if (R() < 0.5) add(19, 'Exchange', Math.round(between(1200, 3200) / 100) * 100, 'Took profits');
+  }
   const M = 30;
   const snaps = [];
-  let v = { checking: 3800, hysa: 9000, mmf: 4000, etf: 26000, pension: 18000, defi: 4200, home: 185000, car: 19000, mortgage: 142000, cc: 900, trading: 30000, bybit: 6000 };
+  let v = { checking: 3800, cashHome: 1500, hysa: 9000, mmf: 6000, deposit: 20000, bill: 15000, bond: 25000, pension: 18000, home: 185000, car: 19000, gold: 6500, mortgage: 142000, cc: 900 };
   for (let i = M; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const mk = monthKey(d);
-    const mkt = 0.007 + normal() * 0.035;
-    // what was added from trading profits and left over after spending (varies a lot month to month)
-    const saved = Math.round(Math.max(-1500, 1900 + normal() * 1600 + (d.getMonth() === 11 ? 4000 : 0)));
+    // what's left of the month before: withdrawn minus spent (earlier months: a rough amount)
+    const saved = i < 5 ? (wdBy[i + 1] || 0) - between(2700, 3300) : Math.round(Math.max(-800, 1300 + normal() * 900));
     if (i < M) {
-      v.etf = v.etf * (1 + mkt) + saved * 0.4;
-      v.pension = v.pension * (1 + mkt * 0.8) + 350;
-      v.hysa = v.hysa * (1 + 0.0375 / 12) + saved * 0.2;
-      v.mmf = v.mmf * (1 + 0.046 / 12) + saved * 0.1;
-      v.defi = Math.max(800, v.defi * (1 + 0.01 + normal() * 0.11));
+      v.hysa = v.hysa * (1 + 0.0275 / 12) + saved * 0.6;
+      v.mmf = v.mmf * (1 + 0.046 / 12) + saved * 0.25;
+      v.bond *= 1 + 0.033 / 12 + normal() * 0.002;
+      v.bill = i % 6 === 0 ? 15000 + (M - i) * 150 : v.bill * (1 + 0.029 / 12);
+      v.deposit = i === 7 ? v.deposit * 1.031 + saved * 0.15 : v.deposit;
+      v.pension = v.pension * (1 + 0.004 + normal() * 0.02) + 150;
       v.checking = Math.max(1500, 3800 + normal() * 700);
       v.home *= 1 + 0.003 + normal() * 0.004;
       v.car *= 0.99;
+      v.gold *= 1 + 0.006 + normal() * 0.025;
       v.mortgage = v.mortgage * (1 + 0.034 / 12) - 820 * 0.6;
       v.cc = Math.max(200, 900 + normal() * 400);
-      v.trading = Math.max(15000, v.trading * (1 + 0.012 + normal() * 0.05));
-      v.bybit = Math.max(2000, v.bybit * (1 + 0.01 + normal() * 0.09));
     }
     const balances = {};
-    for (const [k, a] of Object.entries(nw)) if (k in v) balances[a.id] = Math.round(v[k] * 100) / 100;
-    // crypto holdings accounts: rough history that ends at today's holdings value
-    const f = Math.max(0.35, 1 - i * 0.022 + normal() * 0.08);
-    balances[nw.cexAcc.id] = Math.round(holdingsTotal(nw.cexAcc) * (i ? f : 1));
-    balances[nw.cold.id] = Math.round(holdingsTotal(nw.cold) * (i ? Math.max(0.4, 1 - i * 0.02 + normal() * 0.07) : 1));
+    for (const [k, a] of Object.entries(nw)) balances[a.id] = Math.round(v[k] * 100) / 100;
     snaps.push({ id: id(), demo: true, date: dayKey(d), balances });
   }
   await store.putMany('nwAccounts', Object.values(nw));
-  // subscriptions & bills come out of the everyday account (or the credit card), and update its balance
+  // subscriptions & bills come out of the everyday account (or the credit card)
   await store.putMany('recurring', bills.map(b => ({ ...b, accountId: b.category === 'subscriptions' && b.method === 'Credit card' ? nw.cc.id : nw.checking.id, deduct: false })));
   await store.putMany('txns', txns.filter(t => t.recurringId).map(t => ({ ...t, accountId: store.get('recurring', t.recurringId)?.accountId || '' })));
   await store.putMany('nwSnapshots', snaps.filter(s => !store.all('nwSnapshots').some(x => x.date === s.date)));
-  // money put into / taken out of investment and trading accounts this year
-  const fl = (m, day, acc, dir, amount, currency, note) => ({ id: id(), demo: true, date: dayKey(new Date(now.getFullYear(), m, day)), accountId: acc.id, dir, amount, currency, note });
-  const flowList = [];
-  for (let m = 0; m <= now.getMonth(); m++) if (dayKey(new Date(now.getFullYear(), m, 3)) <= todayK) flowList.push(fl(m, 3, nw.etf, 'in', 500, 'USD', 'Monthly ETF buy'));
-  if (now.getMonth() >= 2) flowList.push(fl(2, 14, nw.trading, 'out', 3000, 'USD', 'Took profits'));
-  if (now.getMonth() >= 4) flowList.push(fl(4, 20, nw.bybit, 'in', 2000, 'USDT', 'Topped up exchange'));
-  await store.putMany('nwFlows', flowList);
+  await store.putMany('withdrawals', wds);
   // a sample target allocation (never touches your own targets); removed with the demo
   const pl = store.getSettings().plan;
   const simple = store.getSettings().mode !== 'pro';
-  if (!Object.keys(pl.targetAllocation || {}).length) await store.saveSettings({ plan: { targetAllocation: simple ? { cash: 3, savings: 12, trading: 15, investments: 40, assets: 30 } : { cash: 3, savings: 10, brokerage: 25, trading: 12, retirement: 10, crypto: 10, realestate: 28, vehicle: 2 } }, demoTargets: true });
+  if (!Object.keys(pl.targetAllocation || {}).length) await store.saveSettings({ plan: { targetAllocation: simple ? { cash: 3, savings: 15, bonds: 14, investments: 8, assets: 60 } : { cash: 3, savings: 9, deposit: 6, bonds: 14, retirement: 8, realestate: 53, vehicle: 4, valuables: 3 } }, demoTargets: true });
 }

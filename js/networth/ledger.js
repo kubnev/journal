@@ -1,14 +1,13 @@
 // Changing account balances from other parts of the app: an expense paid from an account, or a
-// planned move between two accounts that you mark as done. The change is written into today's
-// balance snapshot, so it shows up in net worth right away; your next manual balance update
-// simply overrides it with the real number.
+// withdrawal that lands in one. The change is written into that day's balance, so it shows up in
+// net worth right away; your next balance update simply overrides it with the real number.
 import * as store from '../store.js';
 import { valueAt } from './calc.js';
 import { conv, ccyOf } from '../fx.js';
 import { today } from '../ui.js';
 
-// accounts whose balance can be changed this way (holdings are valued from quantity × price)
-export const adjustable = a => !!a && !a.archivedAt && !a.tracksHoldings;
+// accounts whose balance can be changed this way
+export const adjustable = a => !!a && !a.archivedAt;
 
 // Add `delta` (in the account's own currency) to its balance on `date`. For a debt, a positive
 // delta means you owe more. Returns the delta actually applied, or null if the account can't change.

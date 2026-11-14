@@ -1,5 +1,5 @@
 import * as store from './store.js';
-import { html, raw, $, $$, esc, toast } from './ui.js';
+import { html, raw, $, $$, esc, toast, fmtDate } from './ui.js';
 import { destroyAll } from './charts.js';
 import { checkForUpdate, applyUpdate } from './version.js';
 
@@ -9,7 +9,8 @@ import * as SP from './spend/views.js';
 import { txnModal } from './spend/txn.js';
 import { postDueRecurring } from './spend/calc.js';
 import * as N from './networth/views.js';
-import { flows } from './networth/flows.js';
+import { withdrawals } from './networth/withdrawals.js';
+import { maturities } from './networth/calc.js';
 import * as J from './journal/views.js';
 import { openHelp } from './help.js';
 import { cleanupTourDemo } from './tour.js';
@@ -39,11 +40,11 @@ const I = {
 };
 const NAV = [
   { group: null, items: [{ path: '/', label: 'Overview', icon: I.home }] },
-  { id: 'networth', group: 'Net worth', items: [
+  { id: 'networth', group: 'Money', items: [
     { path: '/networth', label: 'Net worth', icon: I.grid },
-    { path: '/networth/accounts', label: 'Accounts & holdings', icon: I.wallet },
-    { path: '/networth/flows', label: 'Money in & out', icon: I.swap },
-    { path: '/networth/analytics', label: 'Analytics', icon: I.pie },
+    { path: '/networth/accounts', label: 'Accounts', icon: I.wallet },
+    { path: '/networth/withdrawals', label: 'Withdrawals', icon: I.swap },
+    { path: '/networth/analytics', label: 'Insights', icon: I.pie },
   ] },
   { id: 'spending', group: 'Spending', items: [
     { path: '/spending', label: 'Spending', icon: I.chart },
@@ -82,13 +83,13 @@ const ROUTES = [
   [/^\/networth$/, N.overview],
   [/^\/networth\/accounts$/, N.accounts],
   [/^\/networth\/analytics$/, N.analytics],
-  [/^\/networth\/flows$/, flows],
+  [/^\/networth\/withdrawals$/, withdrawals],
   [/^\/journal$/, J.journalDay],
   [/^\/journal\/history$/, J.history],
   [/^\/journal\/insights$/, J.insights],
 ];
 // old links keep working
-const REDIRECTS = { '/networth/update': '/networth/accounts', '/networth/interest': '/networth', '/networth/plan': '/networth/analytics', '/networth/moves': '/networth', '/setup': '/' };
+const REDIRECTS = { '/networth/update': '/networth/accounts', '/networth/interest': '/networth', '/networth/plan': '/networth/analytics', '/networth/moves': '/networth', '/networth/flows': '/networth/withdrawals', '/setup': '/' };
 
 const icon = d => raw(`<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg>`);
 
@@ -252,7 +253,10 @@ function notices(page, only) {
   const stale = !s.lastBackupAt || Date.now() - new Date(s.lastBackupAt) > 7 * 864e5;
   const items = [];
   if (currenciesInUse().length && usingFallback() && !dismissed.has('fx')) items.push(['fx', 'Exchange rates haven\'t loaded yet — other currencies are converted with approximate rates.', 'Retry']);
-  if (s.reviewAccounts && s.mode === 'pro' && currentPath().startsWith('/networth')) items.push(['review', 'You switched to Pro input: check your accounts\' categories, custody, purpose and liquidity so analytics are accurate.', 'Review accounts']);
+  if (s.reviewAccounts && s.mode === 'pro' && currentPath().startsWith('/networth')) items.push(['review', 'You switched to Pro input: check your accounts\' categories, purpose and liquidity so Insights are accurate.', 'Review accounts']);
+  // a term deposit, bill or bond that matures within a week, or already has
+  const due = maturities().filter(m => m.days <= 7 && !dismissed.has('mat:' + m.a.id))[0];
+  if (due && !due.a.demo) items.push(['mat:' + due.a.id, `${esc(due.a.name)} ${due.days < 0 ? `matured on ${fmtDate(due.date)}` : due.days === 0 ? 'matures today' : `matures in ${due.days} day${due.days === 1 ? '' : 's'}`}${due.days <= 0 ? ' — update its balance, or close it if the money moved on.' : '.'}`, 'Open accounts']);
   if (updateInfo?.available && !dismissed.has('update')) items.push(['update', `Version ${updateInfo.latest} is available.`, 'Load it now']);
   if (hasData && stale && s.backupReminder !== false && !dismissed.has('backup')) items.push(['backup', s.lastBackupAt ? `Last backup was ${Math.floor((Date.now() - new Date(s.lastBackupAt)) / 864e5)} days ago. Your data only lives in this browser.` : 'You haven\'t backed up yet. Your data only lives in this browser.', 'Back up now']);
   for (const [k, text, label] of items) {
@@ -263,6 +267,7 @@ function notices(page, only) {
     d.querySelector('[data-never]')?.addEventListener('click', async () => { await store.saveSettings({ backupReminder: false }); d.remove(); toast('Backup reminders off. Turn them back on in Settings → Backup & restore.'); });
     d.querySelector('[data-n]').onclick = async () => {
       if (k === 'update') return applyUpdate(updateInfo.files);
+      if (k.startsWith('mat:')) { dismissed.add(k); return currentPath() === '/networth/accounts' ? route() : go('/networth/accounts'); }
       if (k === 'review') { await store.saveSettings({ reviewAccounts: false }); return currentPath() === '/networth/accounts' ? route() : go('/networth/accounts'); }
       if (k === 'fx') { const r = await refreshRates({ force: true }); toast(r.ok ? 'Exchange rates loaded' : 'Still offline: ' + (r.errors || []).join(' '), r.ok ? 'info' : 'error'); return route(); }
       if (await exportBackupFlow()) d.remove();

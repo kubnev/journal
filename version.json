@@ -1,6 +1,6 @@
 {
-  "version": "2.0.2",
-  "notes": "Journal 2.0",
+  "version": "3.0.0",
+  "notes": "Money rebuilt around real money: Withdrawals, maturities, what moved your net worth.",
   "files": [
     "css/app.css",
     "js/backup.js",
@@ -15,10 +15,9 @@
     "js/main.js",
     "js/mode.js",
     "js/networth/calc.js",
-    "js/networth/flows.js",
     "js/networth/ledger.js",
-    "js/networth/prices.js",
     "js/networth/views.js",
+    "js/networth/withdrawals.js",
     "js/settings.js",
     "js/spend/calc.js",
     "js/spend/categories.js",

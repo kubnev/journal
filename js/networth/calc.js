@@ -3,21 +3,22 @@ import { all, getSettings } from '../store.js';
 import { toDisplay, ccyOf } from '../fx.js';
 import { today, dayKey, parseDay } from '../ui.js';
 
-// Display order: savings → investments → trading → things you own → cash (debts last).
+// Display order: savings → bills & bonds → investments → things you own → cash (debts last).
 // ci = fixed colour slot, so a category keeps its colour whatever the order.
 // liquid: can be turned into cash within days without major loss
 export const ASSET_CATS = [
   { id: 'savings', label: 'Savings & money market', liquid: true, ci: 1 },
-  { id: 'brokerage', label: 'Taxable investments', liquid: true, ci: 2 },
+  { id: 'deposit', label: 'Term deposits', liquid: false, ci: 5 },
+  { id: 'bonds', label: 'Bills & bonds', liquid: true, ci: 2 },
+  { id: 'brokerage', label: 'Stocks & funds', liquid: true, ci: 3 },
   { id: 'retirement', label: 'Retirement & pension', liquid: false, ci: 4 },
-  { id: 'crypto', label: 'Crypto', liquid: true, ci: 5 },
   { id: 'business', label: 'Business equity', liquid: false, ci: 7 },
-  { id: 'trading', label: 'Trading accounts', liquid: true, ci: 3 },
   { id: 'realestate', label: 'Real estate', liquid: false, ci: 6 },
   { id: 'vehicle', label: 'Vehicles', liquid: false, ci: 8 },
+  { id: 'valuables', label: 'Valuables & collectibles', liquid: false, ci: 11 },
   { id: 'receivable', label: 'Money owed to you', liquid: false, ci: 9 },
   { id: 'otherasset', label: 'Other assets', liquid: false, ci: 10 },
-  { id: 'cash', label: 'Cash & checking', liquid: true, ci: 0 },
+  { id: 'cash', label: 'Cash & current accounts', liquid: true, ci: 0 },
 ];
 export const LIAB_CATS = [
   { id: 'mortgage', label: 'Mortgage', shortTerm: false },
@@ -25,21 +26,20 @@ export const LIAB_CATS = [
   { id: 'student', label: 'Student loan', shortTerm: false },
   { id: 'credit', label: 'Credit card', shortTerm: true },
   { id: 'personal', label: 'Personal loan', shortTerm: false },
-  { id: 'margin', label: 'Margin / securities loan', shortTerm: true },
   { id: 'tax', label: 'Taxes owed', shortTerm: true },
   { id: 'otherdebt', label: 'Other debt', shortTerm: false },
 ];
 // Simple input mode: five kinds of asset + debt. Every detailed category belongs to exactly one,
 // so switching modes never loses information (the detailed category is kept underneath).
 export const GROUPS = [
-  { id: 'savings', label: 'Savings', hint: 'Money you put aside — savings accounts, deposits, money-market funds.', cat: 'savings', ci: 1 },
-  { id: 'investments', label: 'Investments', hint: 'Long-term holdings you don’t actively trade — ETFs, stocks, crypto you hold, pension.', cat: 'brokerage', ci: 3 },
-  { id: 'trading', label: 'Trading capital', hint: 'Working capital in your trading accounts (broker, exchange).', cat: 'trading', ci: 2 },
-  { id: 'assets', label: 'Assets', hint: 'Things you own outright — home, car, watches, collectibles, trading cards.', cat: 'otherasset', ci: 4 },
-  { id: 'cash', label: 'Cash', hint: 'Money you spend day to day — current account, card balance, wallet. Food, rent, going out.', cat: 'cash', ci: 0 },
+  { id: 'savings', label: 'Savings', hint: 'Money you put aside — savings accounts, term deposits, money-market funds.', cat: 'savings', ci: 1 },
+  { id: 'bonds', label: 'Bills & bonds', hint: 'Treasury bills, government and corporate bonds you hold to maturity.', cat: 'bonds', ci: 2 },
+  { id: 'investments', label: 'Investments', hint: 'Long-term holdings — funds, stocks, pension, a share in a business.', cat: 'brokerage', ci: 3 },
+  { id: 'assets', label: 'Assets', hint: 'Things you own outright — home, car, gold, watches, collectibles.', cat: 'otherasset', ci: 4 },
+  { id: 'cash', label: 'Cash', hint: 'Money you spend day to day — current account, card balance, cash at home.', cat: 'cash', ci: 0 },
 ];
 export const DEBT = { id: 'debt', label: 'Debt', hint: 'Anything you owe — loans, credit card balance, money borrowed from someone.', cat: 'otherdebt' };
-const CAT_GROUP = { cash: 'cash', savings: 'savings', trading: 'trading', brokerage: 'investments', retirement: 'investments', crypto: 'investments', business: 'investments', realestate: 'assets', vehicle: 'assets', receivable: 'assets', otherasset: 'assets' };
+const CAT_GROUP = { cash: 'cash', savings: 'savings', deposit: 'savings', bonds: 'bonds', brokerage: 'investments', retirement: 'investments', business: 'investments', realestate: 'assets', vehicle: 'assets', valuables: 'assets', receivable: 'assets', otherasset: 'assets' };
 export const groupOf = a => (a.kind === 'liability' ? 'debt' : CAT_GROUP[a.category] || 'assets');
 export const groupInfo = id => GROUPS.find(g => g.id === id) || DEBT;
 export const simpleMode = () => getSettings().mode !== 'pro';
@@ -52,31 +52,31 @@ export const typeLabel = a => (simpleMode() ? groupInfo(groupOf(a)).label : catL
 export const catInfo = id => ASSET_CATS.find(c => c.id === id) || LIAB_CATS.find(c => c.id === id) || { id, label: id };
 export const catLabel = id => catInfo(id).label;
 export const isLiquid = a => (a.liquid === true || a.liquid === false ? a.liquid : !!catInfo(a.category).liquid);
+// kinds of account that can carry an interest rate and a maturity date
+export const canMature = a => a.kind !== 'liability' && ['savings', 'deposit', 'bonds'].includes(a.category);
 
-// Where the money sits — counterparty / custody risk
+// Who holds it
 export const CUSTODY = [
   { id: 'bank', label: 'Bank' },
   { id: 'broker', label: 'Broker / fund platform' },
-  { id: 'cex', label: 'Crypto exchange (CEX)' },
-  { id: 'dex', label: 'DeFi / DEX protocol' },
-  { id: 'self', label: 'Self-custody wallet' },
+  { id: 'state', label: 'Government / treasury' },
   { id: 'physical', label: 'Physical / property' },
   { id: 'other', label: 'Other' },
 ];
-const CUSTODY_DEFAULT = { cash: 'bank', savings: 'bank', brokerage: 'broker', trading: 'broker', retirement: 'broker', crypto: 'cex', realestate: 'physical', vehicle: 'physical', business: 'other', receivable: 'other', otherasset: 'other' };
+const CUSTODY_DEFAULT = { cash: 'bank', savings: 'bank', deposit: 'bank', bonds: 'broker', brokerage: 'broker', retirement: 'broker', realestate: 'physical', vehicle: 'physical', valuables: 'physical', business: 'other', receivable: 'other', otherasset: 'other' };
 export const custodyOf = a => a.custody || CUSTODY_DEFAULT[a.category] || 'other';
 export const custodyLabel = id => CUSTODY.find(c => c.id === id)?.label || id;
 
 // What the money is for — user-defined buckets with sensible defaults
-export const PURPOSES = ['Emergency fund', 'Spending', 'Long-term investing', 'Retirement', 'Trading capital', 'Crypto', 'Short-term goals', 'Home & property', 'Personal assets', 'Business'];
-const PURPOSE_DEFAULT = { cash: 'Spending', savings: 'Emergency fund', brokerage: 'Long-term investing', trading: 'Trading capital', retirement: 'Retirement', crypto: 'Crypto', realestate: 'Home & property', vehicle: 'Personal assets', business: 'Business', receivable: 'Short-term goals', otherasset: 'Personal assets' };
+export const PURPOSES = ['Emergency fund', 'Spending', 'Safe reserve', 'Long-term investing', 'Retirement', 'Short-term goals', 'Home & property', 'Personal assets', 'Business'];
+const PURPOSE_DEFAULT = { cash: 'Spending', savings: 'Emergency fund', deposit: 'Safe reserve', bonds: 'Safe reserve', brokerage: 'Long-term investing', retirement: 'Retirement', realestate: 'Home & property', vehicle: 'Personal assets', valuables: 'Personal assets', business: 'Business', receivable: 'Short-term goals', otherasset: 'Personal assets' };
 export const purposeOf = a => (a.purpose || '').trim() || PURPOSE_DEFAULT[a.category] || 'Other';
 
 // Liquidity tiers (how fast you could get to the money)
-export const TIERS = ['Cash — instant', 'Liquid investments — days', 'Locked / retirement', 'Illiquid — months+'];
+export const TIERS = ['Cash — instant', 'Sellable — days', 'Locked until a date', 'Illiquid — months+'];
 export function tierOf(a) {
-  if (['cash', 'savings'].includes(a.category)) return TIERS[0];
-  if (a.category === 'retirement') return TIERS[2];
+  if (['cash', 'savings'].includes(a.category) && a.liquid !== false) return TIERS[0];
+  if (['deposit', 'retirement'].includes(a.category) && a.liquid !== true) return TIERS[2];
   return isLiquid(a) ? TIERS[1] : TIERS[3];
 }
 
@@ -191,22 +191,10 @@ export function debtMetrics(point) {
   return { total, wRate, minPay, debts };
 }
 
-// Individual positions for concentration analysis: holdings are split out, other accounts count as one
+// Asset accounts by size, for concentration
 export function positions(point) {
-  const out = [];
-  for (const a of all('nwAccounts')) {
-    if (a.kind === 'liability' || a.archivedAt) continue;
-    const v = point.byAcct[a.id] || 0;
-    if (v <= 0) continue;
-    if (a.tracksHoldings && (a.holdings || []).length) {
-      const tot = (a.holdings || []).reduce((s, h) => s + (+h.qty || 0) * (+h.price || 0), 0) || 1;
-      for (const h of a.holdings) { const hv = ((+h.qty || 0) * (+h.price || 0)) / tot * v; if (hv > 0) out.push({ label: `${h.symbol} (${a.name})`, symbol: h.symbol, value: hv, account: a.name }); }
-    } else out.push({ label: a.name, value: v, account: a.name });
-  }
-  // merge the same symbol held in several places
-  const m = new Map();
-  for (const p of out) { const k = p.symbol || p.label; const e = m.get(k) || { label: p.symbol || p.label, value: 0, where: [] }; e.value += p.value; e.where.push(p.account); m.set(k, e); }
-  return [...m.values()].sort((a, b) => b.value - a.value);
+  return all('nwAccounts').filter(a => a.kind !== 'liability' && !a.archivedAt && (point.byAcct[a.id] || 0) > 0)
+    .map(a => ({ label: a.name, value: point.byAcct[a.id] })).sort((a, b) => b.value - a.value);
 }
 // Herfindahl–Hirschman index over position weights; 1/HHI = "effective number of positions"
 export function concentration(list) {
@@ -215,4 +203,40 @@ export function concentration(list) {
   const w = list.map(p => p.value / tot);
   const hhi = w.reduce((s, x) => s + x * x, 0);
   return { hhi, effective: 1 / hhi, top1: w[0], top5: w.slice(0, 5).reduce((a, b) => a + b, 0) };
+}
+
+// ---------- maturities ----------
+// Term deposits, bills and bonds with a maturity date, soonest first. days < 0 = already matured.
+export function maturities() {
+  const now = pointAt(today());
+  return all('nwAccounts').filter(a => !a.archivedAt && canMature(a) && a.maturity)
+    .map(a => ({ a, date: a.maturity, value: now.byAcct[a.id] || 0, native: now.byAcctNative[a.id] || 0, days: Math.round((parseDay(a.maturity) - parseDay(today())) / 864e5) }))
+    .sort((x, y) => x.date.localeCompare(y.date));
+}
+
+// ---------- money per bank ----------
+// Bank money added up per institution (the institution you typed, else the account's name) —
+// deposit guarantee schemes cover a fixed amount per bank.
+export function bankExposure(point) {
+  const m = new Map();
+  for (const a of all('nwAccounts')) {
+    const v = point.byAcct[a.id] || 0;
+    if (a.kind === 'liability' || a.archivedAt || custodyOf(a) !== 'bank' || v <= 0) continue;
+    const name = (a.institution || '').trim() || a.name, k = name.toLowerCase();
+    const e = m.get(k) || { name, value: 0 }; e.value += v; m.set(k, e);
+  }
+  return [...m.values()].sort((a, b) => b.value - a.value);
+}
+
+// ---------- withdrawals & what moved your net worth ----------
+export const wdValue = w => toDisplay(+w.amount || 0, w.currency, w.date);
+const between = (list, from, to) => list.filter(x => x.date && x.date > from && x.date <= to);
+export const withdrawnBetween = (from, to) => between(all('withdrawals'), from, to).reduce((s, w) => s + wdValue(w), 0);
+export const spentBetween = (from, to) => between(all('txns').filter(x => !x.exclude && x.type !== 'income'), from, to).reduce((s, x) => s + toDisplay(+x.amount || 0, ccyOf(x), x.date), 0);
+// Between two balance updates: how much came in as withdrawals, how much you logged as spent, and
+// the rest (interest, changes in what things are worth, anything you didn't log).
+export function whatMoved(first, cur) {
+  if (!first || !cur || first.date >= cur.date) return null;
+  const change = cur.net - first.net, withdrawn = withdrawnBetween(first.date, cur.date), spent = spentBetween(first.date, cur.date);
+  return { from: first.date, to: cur.date, change, withdrawn, spent, other: change - withdrawn + spent };
 }

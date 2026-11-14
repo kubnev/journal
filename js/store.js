@@ -2,13 +2,13 @@
 // writes go straight through to the database.
 
 const DB_NAME = 'journal';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const OLD_DB = 'ledgerline';   // the app's previous name — copied over once, then removed
 
 export const COLLECTIONS = [
   'nwAccounts',    // net worth: assets & debts
   'nwSnapshots',   // net worth: dated balances
-  'nwFlows',       // net worth: money put into / taken out of an account
+  'withdrawals',   // money moved out of brokers, exchanges or a business into your real accounts
   'txns',          // spending: one record per expense
   'recurring',     // spending: bills & subscriptions
   'days',          // journal: one entry per day (id = YYYY-MM-DD)
@@ -20,7 +20,6 @@ export const DEFAULT_SETTINGS = {
   currency: 'USD',
   locale: undefined,
   pnlColors: 'greenred',          // or 'blueorange' (colour-vision friendly)
-  priceApi: { finnhubKey: '', lastUpdate: null },
   lastBackupAt: null,
   backupReminder: true,           // weekly “back up” notice
   privacy: false,                 // hide amounts
@@ -31,14 +30,14 @@ export const DEFAULT_SETTINGS = {
   budgets: { total: 0, byCat: {} },   // monthly limits in the display currency
   payMethods: ['Debit card', 'Credit card', 'Cash', 'Bank transfer', 'Phone wallet'],
   tour: { done: false },
-  plan: { targetAllocation: {}, emergencyMonths: 6, usualSpending: null },
+  plan: { targetAllocation: {}, emergencyMonths: 6, usualSpending: null, depositLimit: 100000 },
   habits: ['Exercise', 'Outside / walk', 'Read', 'No alcohol', 'Screen off before bed'],
   dayTags: ['Stressed', 'Calm', 'Social', 'Productive', 'Tired', 'Sick'],
   nav: { order: [], collapsed: {} },  // sidebar: section order and folded sections
   tourDemo: false, demoBudgets: false, demoTargets: false,  // sample data from the tour is loaded
 };
 // settings from older versions that no longer mean anything
-const OLD_KEYS = ['estimates', 'tradingMode', 'networthMode', 'tagLists', 'v1Migrated', 'fxMigrated'];
+const OLD_KEYS = ['estimates', 'tradingMode', 'networthMode', 'tagLists', 'v1Migrated', 'fxMigrated', 'priceApi'];
 
 let db = null;
 const mem = {};
@@ -55,10 +54,34 @@ function openDb(name, version, upgrade) {
     r.onerror = () => rej(r.error);
   });
 }
-const openMain = () => openDb(DB_NAME, DB_VERSION, d => {
+const openMain = () => openDb(DB_NAME, DB_VERSION, (d, _e, r) => {
   for (const c of COLLECTIONS) if (!d.objectStoreNames.contains(c)) d.createObjectStore(c, { keyPath: 'id' });
   if (!d.objectStoreNames.contains(META_STORE)) d.createObjectStore(META_STORE, { keyPath: 'key' });
+  // version 1 kept deposits and withdrawals per account; only the withdrawals carry over
+  if (d.objectStoreNames.contains(OLD_FLOWS)) {
+    const tx = r.transaction, accts = tx.objectStore('nwAccounts').getAll();
+    accts.onsuccess = () => { const flows = tx.objectStore(OLD_FLOWS).getAll(); flows.onsuccess = () => {
+      for (const w of flowsToWithdrawals(flows.result, accts.result)) tx.objectStore('withdrawals').put(w);
+      d.deleteObjectStore(OLD_FLOWS);
+    }; };
+  }
 });
+
+// ---------- records from older versions ----------
+const OLD_FLOWS = 'nwFlows';
+// "took out of an account" entries become withdrawals; deposits into brokers are dropped
+export function flowsToWithdrawals(flows, accounts) {
+  const name = id => accounts.find(a => a.id === id)?.name || '';
+  return (flows || []).filter(f => f && f.dir === 'out' && +f.amount > 0 && f.date).map(f => ({ id: f.id, date: f.date, amount: +f.amount, currency: f.currency, source: name(f.accountId), accountId: '', note: f.note || '', applied: null, ...(f.demo ? { demo: true } : {}), createdAt: f.createdAt, updatedAt: f.updatedAt }));
+}
+// Accounts no longer list holdings or use the crypto / trading categories: they become plain
+// accounts under Investments, keeping every recorded balance. Returns the same object if nothing changed.
+const OLD_CATS = { crypto: 'brokerage', trading: 'brokerage', margin: 'otherdebt' };
+export function tidyAccount(a) {
+  if (!a || !(a.category in OLD_CATS || 'holdings' in a || 'tracksHoldings' in a || ['cex', 'dex', 'self'].includes(a.custody) || ['Crypto', 'Trading capital'].includes(a.purpose))) return a;
+  const { holdings, tracksHoldings, ...rest } = a;
+  return { ...rest, category: OLD_CATS[a.category] || a.category, custody: ['cex', 'dex', 'self'].includes(a.custody) ? '' : a.custody, purpose: ['Crypto', 'Trading capital'].includes(a.purpose) ? '' : a.purpose };
+}
 
 function merge(base, over) {
   if (!over || typeof over !== 'object' || Array.isArray(over)) return over === undefined ? base : over;
@@ -79,11 +102,12 @@ async function moveOldDatabase() {
     old = await openDb(OLD_DB, undefined, (_d, e, r) => { if (e.oldVersion === 0) r.transaction.abort(); });
   } catch { return; }
   try {
-    const stores = [...COLLECTIONS, META_STORE].filter(c => old.objectStoreNames.contains(c));
+    const stores = [...COLLECTIONS, OLD_FLOWS, META_STORE].filter(c => old.objectStoreNames.contains(c));
     const tx = old.transaction(stores, 'readonly');
     const data = Object.fromEntries(await Promise.all(stores.map(async c => [c, await req(tx.objectStore(c).getAll())])));
     const drop = o => o.type === 'income';
-    const wtx = db.transaction([...COLLECTIONS, META_STORE].filter(c => data[c]), 'readwrite');
+    const wtx = db.transaction([...COLLECTIONS, META_STORE], 'readwrite');
+    data.withdrawals = [...(data.withdrawals || []), ...flowsToWithdrawals(data[OLD_FLOWS], data.nwAccounts || [])];
     for (const c of COLLECTIONS) for (const o of data[c] || []) if (!drop(o)) wtx.objectStore(c).put(o);
     for (const m of data[META_STORE] || []) wtx.objectStore(META_STORE).put(m);
     await txDone(wtx);
@@ -101,6 +125,8 @@ export async function init() {
   const saved = (await req(tx.objectStore(META_STORE).get('settings')))?.value || {};
   for (const k of OLD_KEYS) delete saved[k];
   settings = merge(structuredClone(DEFAULT_SETTINGS), saved);
+  const changed = mem.nwAccounts.map(tidyAccount).filter((a, i) => a !== mem.nwAccounts[i]);
+  if (changed.length) await putMany('nwAccounts', changed);
   // small per-browser preferences moved from the old key prefix
   try { for (const k of Object.keys(localStorage)) if (k.startsWith('tj.')) { localStorage.setItem('journal.' + k.slice(3), localStorage.getItem(k)); localStorage.removeItem(k); } } catch {}
   // ask the browser not to evict our data under storage pressure
@@ -182,7 +208,7 @@ const isObj = o => o && typeof o === 'object' && !Array.isArray(o);
 const okId = id => (typeof id === 'string' && id.length > 0 && id.length < 200) || Number.isFinite(id);
 export function validateBackup(obj) {
   if (!isObj(obj) || !isOurApp(obj.app) || !isObj(obj.data)) throw new Error('This file is not a backup from this app.');
-  for (const c of COLLECTIONS) {
+  for (const c of [...COLLECTIONS, OLD_FLOWS]) {
     const list = obj.data[c];
     if (list == null) continue;
     if (!Array.isArray(list)) throw new Error(`Backup is damaged ("${c}" is not a list).`);
@@ -205,7 +231,7 @@ function cleanSettings(s) {
   const strList = v => Array.isArray(v) && v.every(x => typeof x === 'string');
   for (const k of ['payMethods', 'habits', 'dayTags']) if (k in out && !strList(out[k])) delete out[k];
   if ('categories' in out && out.categories !== null && !(Array.isArray(out.categories) && out.categories.every(c => isObj(c) && typeof c.id === 'string' && typeof c.name === 'string' && (c.subs == null || strList(c.subs))))) delete out.categories;
-  for (const k of ['fx', 'plan', 'tour', 'priceApi', 'budgets', 'nav']) if (k in out && !isObj(out[k])) delete out[k];
+  for (const k of ['fx', 'plan', 'tour', 'budgets', 'nav']) if (k in out && !isObj(out[k])) delete out[k];
   if (out.nav) out.nav = { order: Array.isArray(out.nav.order) ? out.nav.order.filter(x => typeof x === 'string').slice(0, 20) : [], collapsed: isObj(out.nav.collapsed) ? Object.fromEntries(Object.entries(out.nav.collapsed).filter(([k, v]) => typeof k === 'string' && v === true).slice(0, 20)) : {} };
   return out;
 }
@@ -213,9 +239,11 @@ function cleanSettings(s) {
 export async function importBackup(obj, { mode = 'replace' } = {}) {
   validateBackup(obj);
   if (mode === 'replace') await clearAll({ keepSettings: true });
-  for (const c of COLLECTIONS) if (Array.isArray(obj.data[c]) && obj.data[c].length) {
+  // backups from older versions: convert what still applies
+  const data = { ...obj.data, nwAccounts: (obj.data.nwAccounts || []).map(tidyAccount), withdrawals: [...(obj.data.withdrawals || []), ...flowsToWithdrawals(obj.data[OLD_FLOWS], obj.data.nwAccounts || [])] };
+  for (const c of COLLECTIONS) if (Array.isArray(data[c]) && data[c].length) {
     const tx = db.transaction(c, 'readwrite');
-    for (const o of obj.data[c]) {
+    for (const o of data[c]) {
       if (o.type === 'income') continue;   // income entries from older versions
       tx.objectStore(c).put(o);
       const i = mem[c].findIndex(x => x.id === o.id);

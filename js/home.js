@@ -4,7 +4,7 @@ import * as store from './store.js';
 import { html, money, pct, num, pnlClass, stat, fmtDate, today, dayKey, parseDay } from './ui.js';
 import { MOODS, streaks } from './journal/views.js';
 import * as C from './charts.js';
-import { nwSeries, assetCats, baseline, interestOverview } from './networth/calc.js';
+import { nwSeries, assetCats, baseline, interestOverview, withdrawnBetween } from './networth/calc.js';
 import { lastUpdate, typeBreakdown, catColor, dateLabels } from './networth/views.js';
 import * as S from './spend/calc.js';
 import { catLabel } from './spend/categories.js';
@@ -20,7 +20,7 @@ export default async function home(el) {
       <section class="hero"><h1>${greet}.</h1>
         <p>A private place to keep track of <b>what you own</b>, <b>where your money goes</b> and <b>how you're doing</b>. Everything stays in this browser — nothing is uploaded.</p></section>
       <div class="grid g3">
-        <div class="choice"><h2>Add your accounts</h2><p class="small muted">Savings, investments, exchanges, cash, things you own — and any debts. Update the balances whenever you like; each update is kept as history.</p><a class="btn primary" href="#/networth/accounts">Add accounts</a></div>
+        <div class="choice"><h2>Add your accounts</h2><p class="small muted">Bank accounts, savings, bills and bonds, cash, things you own — and any debts. Update the balances whenever you like; each update is kept as history.</p><a class="btn primary" href="#/networth/accounts">Add accounts</a></div>
         <div class="choice"><h2>Log spending</h2><p class="small muted">Amount, category, done. Press <kbd>N</kbd> any time.</p><button class="btn" data-quick-add>+ Add expense</button></div>
         <div class="choice"><h2>Write today's check-in</h2><p class="small muted">Mood, energy, stress, sleep and a few lines — two minutes a day.</p><a class="btn" href="#/journal">Open the journal</a></div>
       </div>
@@ -49,6 +49,7 @@ export default async function home(el) {
   const jToday = store.get('days', today());
   const jst = streaks();
   const target = st.plan?.emergencyMonths || 6;
+  const yr = today().slice(0, 4), wdYear = store.all('withdrawals').length ? withdrawnBetween(`${+yr - 1}-12-31`, today()) : null;
 
   el.innerHTML = String(html`
     <div class="page-head"><div><h1>${greet}</h1><div class="sub">${fmtDate(today(), { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}${daysSince != null ? ` · balances last updated ${daysSince === 0 ? 'today' : daysSince === 1 ? 'yesterday' : `${daysSince} days ago`}` : ''}</div></div>
@@ -56,12 +57,13 @@ export default async function home(el) {
     <div class="stats big" data-tour="nw-stats">
       ${stat('Net worth', cur ? money(cur.net) : '—', { sub: cur && prev ? html`<span class="${pnlClass(cur.net - prev.net)}">${money(cur.net - prev.net, { sign: true })}</span> since ${fmtDate(prev.date, { month: 'short', day: 'numeric' })}` : cur ? 'first update' : html`<a href="#/networth/accounts">add accounts</a>` })}
       ${stat(yearAgo ? 'Past 12 months' : 'Since you started', delta != null ? money(delta, { sign: true }) : '—', { cls: pnlClass(delta), sub: delta != null ? `${ref.net > 0 ? pct(delta / ref.net, 1, { sign: true }) + ' · ' : ''}since ${fmtDate(ref.date, { month: 'short', day: 'numeric', year: 'numeric' })}` : 'needs a second update' })}
-      ${stat('Liquid net worth', cur ? money(cur.liquidNet) : '—', { cls: cur ? pnlClass(cur.liquidNet) : '', sub: cur?.assets ? `${pct(cur.liquid / cur.assets, 0)} of assets are liquid` : '', help: 'Liquid assets (cash, savings, investments, crypto, trading capital) minus all debts — what you could reach within days.' })}
+      ${stat('Liquid net worth', cur ? money(cur.liquidNet) : '—', { cls: cur ? pnlClass(cur.liquidNet) : '', sub: cur?.assets ? `${pct(cur.liquid / cur.assets, 0)} of assets are liquid` : '', help: 'Liquid assets (cash, savings, bills & bonds, funds) minus all debts — what you could reach within days.' })}
+      ${wdYear != null ? stat(`Withdrawn in ${yr}`, money(wdYear), { sub: html`<a href="#/networth/withdrawals">Withdrawals →</a>`, help: 'Money you moved out of brokers, exchanges or a business into your real accounts this year.' }) : ''}
       ${stat('Interest / month', io.earn.length ? money(io.earnMonth) : '—', { cls: io.earnMonth ? 'pos' : '', sub: io.earn.length ? `estimate · ${money(io.earnDay, { decimals: 2 })} a day` : 'no APY set', help: 'What your interest-bearing accounts would earn per month at their APY and today’s balance. An estimate — balances don’t change on their own.' })}
     </div>
     <div class="grid g-2-1 mt">
       <div class="card" data-tour="nw-chart"><div class="card-head"><h2>Net worth</h2><a class="hint" href="#/networth">Details →</a></div>${series.length > 1 ? html`<div class="chart tall"><canvas id="o-nw"></canvas></div>` : html`<div class="first-snap">${cur ? typeBreakdown(cur) : ''}<div class="not-enough"><b>Not enough data yet</b><span>The trend line starts once you've updated balances on two different days.</span></div></div>`}</div>
-      <div class="card" data-tour="alloc"><div class="card-head"><h2>Where it sits</h2><a class="hint" href="#/networth/analytics">Analytics →</a></div>${alloc.length ? html`<div class="chart tall"><canvas id="o-alloc"></canvas></div>` : html`<p class="muted small">Add accounts to see how your money is split.</p>`}</div>
+      <div class="card" data-tour="alloc"><div class="card-head"><h2>Where it sits</h2><a class="hint" href="#/networth/analytics">Insights →</a></div>${alloc.length ? html`<div class="chart tall"><canvas id="o-alloc"></canvas></div>` : html`<p class="muted small">Add accounts to see how your money is split.</p>`}</div>
     </div>
     <div class="grid g3 mt">
       <div class="card" data-tour="biggest"><div class="card-head"><h2>Largest accounts</h2><a class="hint" href="#/networth/accounts">Accounts →</a></div>

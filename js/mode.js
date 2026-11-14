@@ -7,7 +7,7 @@ const SIMPLE = {
   title: 'Simple',
   lead: 'Quick, plain-language input.',
   points: [
-    'Accounts are one of six types: Savings, Investments, Trading capital, Assets, Cash, Debt',
+    'Accounts are one of six types: Savings, Bills & bonds, Investments, Assets, Cash, Debt',
     'Expenses: amount, category, date, a short note — and optionally the account it came from',
     'Subscriptions & bills: name, amount, charge day, account',
     'Everything else (liquidity, custody, purpose…) is worked out for you',
@@ -17,7 +17,7 @@ const PRO = {
   title: 'Pro',
   lead: 'Detailed input for deeper analysis.',
   points: [
-    '11 asset and 8 debt categories (retirement, real estate, vehicles, mortgage…)',
+    '12 asset and 7 debt categories (term deposits, retirement, real estate, mortgage…)',
     'Set institution, custody, purpose and liquidity per account',
     'Expenses: subcategory, merchant, payment method, tags, need/want, repeats',
     'Journal: what went well / was hard, and tags',
@@ -67,10 +67,10 @@ export async function switchMode(to) {
   if (to === from) return false;
   const nAcc = store.all('nwAccounts').length;
   const body = to === 'pro'
-    ? `<p>Pro splits your accounts into finer categories — e.g. <b>Investments</b> becomes taxable investments, retirement, crypto or business; <b>Assets</b> becomes real estate, vehicles or other assets.</p>
+    ? `<p>Pro splits your accounts into finer categories — e.g. <b>Savings</b> becomes savings or term deposits; <b>Investments</b> becomes stocks & funds, retirement or business; <b>Assets</b> becomes real estate, vehicles or other assets.</p>
        ${nAcc ? `<p>Your ${nAcc} account${nAcc === 1 ? ' is' : 's are'} placed in the closest Pro category automatically. <b>Review them on Accounts</b> and adjust the category, custody, purpose and liquidity where it matters — your analytics get more accurate.</p>` : ''}
        <p class="small muted">The expense form also gets subcategory, merchant, payment method, tags and more.</p>`
-    : `<p>Simple groups everything into six types: Savings, Investments, Trading capital, Assets, Cash and Debt.</p>
+    : `<p>Simple groups everything into six types: Savings, Bills & bonds, Investments, Assets, Cash and Debt.</p>
        ${nAcc ? `<p><b>Nothing is deleted or reset.</b> Each detailed category falls into one of the six types, and the details you set (category, custody, purpose…) are kept — they come back if you switch to Pro again.</p>` : ''}
        <p class="small muted">Extra Pro fields are hidden from the forms; values you already entered stay on your transactions.</p>`;
   const ok = await modal({ title: `Switch to ${to === 'pro' ? 'Pro' : 'Simple'} input?`, body, actions: [{ label: 'Cancel' }, { label: `Switch to ${to === 'pro' ? 'Pro' : 'Simple'}`, kind: 'primary', value: () => true }] });

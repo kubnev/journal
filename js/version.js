@@ -1,8 +1,9 @@
 // App version + "check for update". The site is static, so an update means: fetch version.json
 // fresh, and if it's newer, re-download every app file into the browser cache and reload.
-export const APP_VERSION = '2.0.2';
+export const APP_VERSION = '3.0.0';
 
 export const CHANGELOG = [
+  ['3.0.0', 'Money, rebuilt around real money. New Withdrawals page (replaces Money in & out): log what you move out of a broker, an exchange or a business, see it per month and year next to your spending. Net worth shows what moved it (withdrawn, spent, everything else) and which term deposits, bills and bonds mature next. Account types are now Savings, Bills & bonds, Investments, Assets, Cash and Debt. Insights checks how much sits at one bank against the deposit guarantee. Removed: crypto and trading categories, holdings and live prices — those accounts become plain Investments accounts and keep their history.'],
   ['2.0.2', 'Settings → Usual monthly spending: used for cash runway and your usual month whenever there is no recent logged spending; your real average takes over once you log a week again.'],
   ['2.0.1', 'The first screen offers a 1-minute tour next to Simple and Pro.'],
   ['2.0.0', 'Journal. Balances are updated right on Accounts & holdings (Update next to each account, or Update all), and every update is kept as history. Interest is an estimate on the Net worth page; balances no longer grow on their own. No more starting estimates: where there is not enough data yet, the app says so. Averages and cash runway need just a week of logged spending.'],

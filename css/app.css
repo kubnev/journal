@@ -535,9 +535,6 @@ details.fold > summary { cursor: pointer; font-family: var(--font-serif); font-w
 body.privacy #main input[type=number], body.privacy .modal-wrap input[type=number] { filter: blur(5px); transition: filter .15s; }
 body.privacy #main input[type=number]:focus, body.privacy .modal-wrap input[type=number]:focus { filter: none; }
 @media (max-width: 900px) { .privacy-fixed { display: none; } }
-.flow-row { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; gap: 10px; align-items: baseline; padding: 8px 4px; border: 0; border-bottom: 1px solid var(--border); background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; width: 100%; }
-.flow-row:hover { background: var(--surface-2); }
-.flow-row b { font-variant-numeric: tabular-nums; }
 
 /* ---------- not enough data / interest / balance updates ---------- */
 .not-enough { display: flex; flex-direction: column; gap: 4px; padding: 18px 16px; border: 1px dashed var(--border-strong); border-radius: var(--radius); color: var(--text-3); font-size: 13px; text-align: center; justify-content: center; flex: 1; min-height: 110px; }
@@ -557,4 +554,11 @@ body.privacy #main input[type=number]:focus, body.privacy .modal-wrap input[type
 .link-btn { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; cursor: pointer; }
 .link-btn:hover { text-decoration: underline; }
 @media (max-width: 640px) { .bal-input { width: 100px; } .bulk-bar { position: static; } }
+
+/* ---------- what moved net worth ---------- */
+.moved { display: flex; align-items: stretch; gap: 10px; flex-wrap: wrap; }
+.moved > div { flex: 1 1 150px; display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; background: var(--surface-2); border-radius: 8px; min-width: 0; }
+.moved > div b { font-family: var(--font-serif); font-size: 21px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.moved .op { align-self: center; color: var(--text-3); font-size: 18px; flex: none; }
+@media (max-width: 640px) { .moved .op { display: none; } }
 

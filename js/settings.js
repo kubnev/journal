@@ -40,6 +40,7 @@ export default async function settingsView(el) {
             </label>
             <label class="field">Usual monthly spending <span class="hint">in ${s.currency} — only used when there's no recent logged spending</span><input name="usualSpending" type="number" min="0" step="any" value="${s.plan?.usualSpending || ''}" placeholder="optional"></label>
             <label class="field">Cash runway target <span class="hint">months of spending</span><input name="emergencyMonths" type="number" min="1" max="36" step="1" value="${s.plan?.emergencyMonths || 6}"></label>
+            <label class="field">Deposit guarantee limit <span class="hint">per bank, in ${s.currency} — e.g. 100,000 in the EU</span><input name="depositLimit" type="number" min="0" step="any" value="${s.plan?.depositLimit ?? ''}" placeholder="none"></label>
             <label class="field">Theme
               <select name="theme"><option value="auto" ${s.theme === 'auto' ? raw('selected') : ''}>Auto (match system)</option><option value="dark" ${s.theme === 'dark' ? raw('selected') : ''}>Dark</option><option value="light" ${s.theme === 'light' ? raw('selected') : ''}>Light</option></select>
             </label>
@@ -70,7 +71,7 @@ export default async function settingsView(el) {
           </div>
           <label class="check mt"><input type="checkbox" id="bk-remind" ${s.backupReminder !== false ? raw('checked') : ''}> Remind me to back up when the last backup is over a week old</label>
           <p class="small muted mt" style="margin-bottom:0">
-            ${counts.nwAccounts} accounts · ${counts.nwSnapshots} update days · ${counts.txns} expenses · ${counts.recurring} bills & subscriptions · ${counts.days} journal entries
+            ${counts.nwAccounts} accounts · ${counts.nwSnapshots} update days · ${counts.withdrawals} withdrawals · ${counts.txns} expenses · ${counts.recurring} bills & subscriptions · ${counts.days} journal entries
             ${est ? html`<br>Using ${(est.usage / 1048576).toFixed(1)} MB of local storage.` : ''}
           </p>
         </div>
@@ -89,14 +90,8 @@ export default async function settingsView(el) {
         <div class="card">
           <div class="card-head"><h2>Exchange rates</h2><span class="hint">${ratesAt() ? 'updated ' + new Date(ratesAt()).toLocaleString() : usingFallback() && currenciesInUse().length ? 'approximate — not loaded yet' : 'not needed yet'}</span></div>
           ${otherCurrencies().length ? html`<table class="data compact"><tbody>${otherCurrencies().map(c => html`<tr><td>1 ${s.currency}</td><td class="num">${(rate(c) / rate(s.currency)).toFixed(4)} ${c}</td><td class="num muted">1 ${c} = ${(rate(s.currency) / rate(c)).toFixed(4)} ${s.currency}</td></tr>`)}</tbody></table>` : html`<p class="small muted">All your accounts use ${s.currency}. Add an account in another currency and rates load automatically.</p>`}
-          <div class="row mt"><button class="btn" data-act="fx">Refresh rates</button><span class="small muted">Source: European Central Bank (via Frankfurter), Coinbase as fallback.</span></div>
+          <div class="row mt"><button class="btn" data-act="fx">Refresh rates</button><span class="small muted">Source: European Central Bank reference rates (via Frankfurter).</span></div>
         </div>
-
-        <form class="card" id="pricecfg">
-          <div class="card-head"><h2>Price data</h2><span class="hint">last update: ${s.priceApi?.lastUpdate ? new Date(s.priceApi.lastUpdate).toLocaleString() : 'never'}</span></div>
-          <p class="small muted">Holdings in net worth can fetch live prices. <b>Crypto</b> works out of the box (Binance, with Coinbase as fallback). <b>Stocks/ETFs</b> need a free API key from <a href="https://finnhub.io/register" target="_blank" rel="noopener">finnhub.io</a> (US-listed symbols on the free plan). The key is stored only in this browser and sent only to Finnhub. Prices are converted from USD into each account's currency using ECB rates.</p>
-          <div class="row"><input name="finnhubKey" value="${s.priceApi?.finnhubKey || ''}" placeholder="Finnhub API key" autocomplete="off" spellcheck="false" style="flex:1;min-width:200px"><button class="btn primary">Save key</button></div>
-        </form>
 
         <div class="card">
           <div class="card-head"><h2>About</h2><span class="hint">v${APP_VERSION}</span></div>
@@ -107,7 +102,7 @@ export default async function settingsView(el) {
 
         <div class="card">
           <div class="card-head"><h2>Danger zone</h2></div>
-          <p class="small muted">Wipe every transaction, bill, account, balance snapshot and setting (including your Finnhub key) from this browser. Export a backup first if you want to keep anything.</p>
+          <p class="small muted">Wipe every expense, bill, account, balance, withdrawal, journal entry and setting from this browser. Export a backup first if you want to keep anything.</p>
           <button class="btn danger" data-act="wipe">Delete all data…</button>
         </div>
       </div>
@@ -116,14 +111,9 @@ export default async function settingsView(el) {
   el.querySelector('#prefs').onsubmit = async e => {
     e.preventDefault();
     const f = formData(e.target);
-    await store.saveSettings({ currency: f.currency, locale: f.locale || undefined, pnlColors: f.pnlColors, theme: f.theme, plan: { emergencyMonths: Math.min(36, Math.max(1, Math.round(+f.emergencyMonths) || 6)), usualSpending: +f.usualSpending > 0 ? +f.usualSpending : null } });
+    await store.saveSettings({ currency: f.currency, locale: f.locale || undefined, pnlColors: f.pnlColors, theme: f.theme, plan: { emergencyMonths: Math.min(36, Math.max(1, Math.round(+f.emergencyMonths) || 6)), usualSpending: +f.usualSpending > 0 ? +f.usualSpending : null, depositLimit: +f.depositLimit > 0 ? +f.depositLimit : null } });
     await refreshRates().catch(() => {});
     toast('Preferences saved'); refresh();
-  };
-  el.querySelector('#pricecfg').onsubmit = async e => {
-    e.preventDefault();
-    await store.saveSettings({ priceApi: { ...(store.getSettings().priceApi || {}), finnhubKey: e.target.finnhubKey.value.trim() } });
-    toast('Price data key saved');
   };
   el.querySelector('#lists').onsubmit = async e => {
     e.preventDefault();

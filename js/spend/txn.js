@@ -53,7 +53,7 @@ export async function txnModal(t = {}, { date } = {}) {
         const df = w.querySelector('.deductf'); df.hidden = !a;
         const fixed = opt?.dataset.fixed;
         f.deduct.disabled = !!fixed; if (fixed) f.deduct.checked = false;
-        w.querySelector('#dd-hint').textContent = !a ? '' : fixed ? '— its value comes from holdings' : a.kind === 'liability' ? '— adds it to what you owe' : editing && t.deducted ? '— already taken off; changes are adjusted' : '— its balance drops today';
+        w.querySelector('#dd-hint').textContent = !a ? '' : fixed ? '— this account is closed' : a.kind === 'liability' ? '— adds it to what you owe' : editing && t.deducted ? '— already taken off; changes are adjusted' : '— its balance drops today';
       };
       f.accountId?.addEventListener('change', syncAcct); syncAcct();
       setTimeout(() => f.amount.focus());

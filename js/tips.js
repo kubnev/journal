@@ -5,7 +5,7 @@
 
 const F = {
   // ---------- net-worth account ----------
-  group: 'Pick the closest fit. Cash = spending money; Savings = money put aside; Trading capital = money in your trading accounts; Investments = long-term holdings; Assets = things you own; Debt = what you owe.',
+  group: 'Pick the closest fit. Cash = spending money; Savings = money put aside; Bills & bonds = treasury bills and bonds; Investments = funds, stocks, pension; Assets = things you own; Debt = what you owe.',
   kind: 'Asset = something you own (cash, investments, a home). Liability = something you owe (loan, card balance). Liabilities are subtracted from net worth.',
   category: 'Groups the account in charts and on Accounts, and decides the default for “Liquid?”.',
   'nf:name': 'Any name you’ll recognise, e.g. “Main bank EUR” or “Index fund”.',
@@ -14,14 +14,23 @@ const F = {
   balance: 'What it’s worth today, in the account’s currency. For debts, the amount you still owe. Saved as its first balance update.',
   rate: 'Yearly interest rate on the debt. Used for the weighted average rate and to prioritise payoff.',
   payment: 'Your regular monthly payment on this debt, in the account’s currency.',
-  custody: 'Who actually holds the money — bank, broker, crypto exchange, your own wallet… Used to show counterparty risk in Analytics.',
-  purpose: 'What this money is for (emergency fund, retirement, house deposit…). Auto picks one from the category; choose “Other” to name your own. Shown as buckets in Analytics.',
+  custody: 'Who actually holds it — a bank, a broker, the state, or you (property, things at home). Shown in Insights.',
+  purpose: 'What this money is for (emergency fund, retirement, house deposit…). Auto picks one from the category; choose “Other” to name your own. Shown as buckets in Insights.',
   apy: 'Yearly interest / yield (APY). Used only for the estimates on Net worth (what it earns per day, month and year) — the balance itself only changes when you update it. Leave blank or 0 if it doesn’t earn interest.',
-  liquid: 'Could you turn it into cash within a few days without a big loss? Yes for cash, savings, stocks, crypto; no for a house, car or locked pension. Auto decides by category.',
-  tracksHoldings: 'Instead of typing a balance, list what you hold (e.g. 0.5 BTC, 10 AAPL). Value = quantity × price, and prices can update with one click.',
+  liquid: 'Could you turn it into cash within a few days without a big loss? Yes for cash, savings, bills and bonds; no for a house, car, term deposit or locked pension. Auto decides by category.',
   'nf:notes': 'Anything you want to remember about this account.',
   d: 'The date you closed it. From this date the account counts as zero; history before it is kept.',
 
+  maturity: 'The day a term deposit, bill or bond pays back. It shows under Maturing on Net worth, and you get a reminder a week before.',
+  depositLimit: 'How much your country’s deposit guarantee covers per bank (100,000 € in the EU, 250,000 $ in the US). Insights flags a bank that holds more than this. Leave empty to turn the check off.',
+  // ---------- withdrawals ----------
+  'wdf:currency': 'The currency of the money that arrived. Totals are converted to your display currency at that day’s rate.',
+  'wdf:date': 'The day the money arrived. The year decides which year it counts in.',
+  'wdf:note': 'Anything that helps later, e.g. “monthly living money” or “took profits”.',
+  'wdf:amount': 'How much arrived, in the currency it arrived in.',
+  'wdf:source': 'Where the money came out of — a broker, an exchange, your business. Any name; totals are grouped by it.',
+  'wdf:accountId': 'The account the money landed in. Optional — only needed if you want its balance raised.',
+  'wdf:adjust': 'Raises that account’s balance today by this amount (converted to its currency). Leave it off if you’ll update the balance yourself — otherwise the money counts twice.',
   usualSpending: 'What you normally spend in a month. Used for cash runway and your usual month only while there’s no recent logged spending — as soon as you log a week of it, your real average takes over.',
   emergencyMonths: 'How many months of spending you want to keep in cash and savings. 3–6 is the usual target.',
 
@@ -62,12 +71,6 @@ const F = {
   // ---------- budgets ----------
   'bf:total': 'Your spending limit for a whole month, in the display currency. Leave blank to use the sum of the category limits.',
 
-  // ---------- money in & out ----------
-  'flf:accountId': 'The account the money went into (deposit) or came out of (withdrawal).',
-  'flf:amount': 'How much you moved, as a positive number.',
-  'flf:currency': 'The currency of the transfer. Totals are converted to your display currency at that day’s rate.',
-  'flf:date': 'The day the money moved. The year decides which year it counts in.',
-  'flf:note': 'Anything that helps later, e.g. “monthly ETF buy” or “took profits”.',
   adjust: 'Adds a deposit to (or takes a withdrawal off) the account’s balance today. Leave it off if you’ll type the new balance on Update balances anyway — otherwise it would count twice until then.',
 
   // ---------- journal ----------
@@ -92,7 +95,6 @@ const F = {
   locale: 'How numbers and dates are written (1,234.56 vs 1.234,56; month/day order).',
   pnlColors: 'Colours for profit and loss. Blue/orange is easier to tell apart with colour-vision deficiency.',
   theme: 'Light, dark, or follow your device setting.',
-  finnhubKey: 'Free key from finnhub.io for US stock prices. Stored only in this browser and sent only to Finnhub. Crypto prices don’t need a key.',
 
   // ---------- backup password ----------
   pw: 'Encrypts the backup file. You’ll need the exact same password to restore it — a lost password can’t be recovered.',
@@ -108,11 +110,6 @@ const H = {
   'Liquid': 'Can it become cash within days without a big loss?',
   'Change': 'Difference vs the previous period — the last balance update on Net worth, your recent average on Spending.',
   'Trend': 'Balance history of the account.',
-  'Weight': 'Share of this account’s holdings.',
-  'Cost basis': 'What you paid in total for the holding.',
-  'Total cost basis': 'What you paid in total for this holding (optional — enables unrealised P&L).',
-  'Unrealised P&L': 'Current value minus what you paid (cost basis), not locked in yet.',
-  'Source': 'Where the price came from and how fresh it is.',
   'Drift': 'Current share minus target share. Red = outside the rebalancing band: 5 percentage points, or 25% of the target if that is smaller (the 5/25 rule).',
   'Adjust by': 'Roughly how much to add (+) or remove (−) to hit the target allocation.',
   'Target %': 'The share of assets you want in this category. Should add up to 100%.',
