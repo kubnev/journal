@@ -6,25 +6,24 @@ import { loadDemo, removeDemo } from './demo.js';
 
 const STEPS = [
   { title: 'Welcome to Journal', text: 'A private tracker for <b>what you own</b>, <b>where your money goes</b> and a short daily journal. This tour uses <b>sample data</b> so every chart has something in it; it\'s deleted when the tour ends.' },
-  { route: '/', sel: '[data-tour=nw-stats]', title: 'Your money at a glance', text: 'Net worth and how it changed, what you could reach within days (liquid net worth) and an estimate of the interest your accounts earn.' },
-  { route: '/', sel: '[data-tour=nw-chart]', title: 'Updates build the trend', text: 'Each time you update a balance, that day is kept as history and the line grows. Every few weeks or monthly is plenty.' },
-  { route: '/networth/accounts', sel: '.acct-group', up: null, title: 'Accounts', text: 'Everything you own and owe, grouped by type: savings, bills and bonds, investments, things you own, cash and debts. Each account keeps its own currency.' },
-  { route: '/networth/accounts', sel: '[data-upd]', title: 'Update a balance', text: '<b>Update</b> records today\'s value and keeps the old one as history. <b>Edit</b> changes the account itself (name, type, interest rate, maturity date). <b>Update all</b> does every account at once.' },
-  { route: '/networth/withdrawals', sel: '#main .stats', title: 'Withdrawals', text: 'Log money when you move it out of a broker, an exchange or a business into your real accounts. You see how much came out per month and year — and whether you spent more or less than you withdrew.' },
-  { route: '/networth', sel: '[data-tour=moved]', title: 'What moved your net worth', text: 'Between two balance updates: what you withdrew, what you spent, and everything else — interest, value changes and anything that wasn\'t logged.' },
-  { route: '/networth', sel: '[data-tour=interest]', title: 'Interest and maturities', text: 'What your accounts would earn per day, month and year at their rate, and below it which term deposits, bills and bonds mature next. Balances never change on their own — you update them.' },
-  { route: '/networth/analytics', sel: '[data-tour=health]', title: 'Insights', text: 'Who holds your money, how much sits at one bank compared with the deposit guarantee, how fast you could reach it, and your target allocation.' },
+  { route: '/', sel: '[data-tour=nw-stats]', title: 'Everything at a glance', text: 'The Overview shows the three parts side by side: your net worth and how it changed, what you spent this month, how long your cash would last — and today\'s journal below.' },
+  { route: '/networth/accounts', sel: '.acct-group', up: null, title: 'Accounts', text: 'Everything you own and owe, grouped by type: savings, investments, things you own, cash and debts. Each account keeps its own currency.' },
+  { route: '/networth/accounts', sel: '[data-upd]', title: 'Update a balance', text: '<b>Update</b> records today\'s value and keeps the old one as history. <b>Edit</b> changes the account itself. <b>Update all</b> does every account at once.' },
+  { route: '/networth', sel: '[data-tour=nw-line]', title: 'Net worth: how it changed', text: 'Each update is a point on the line. This page is about time: growth per year, the change from update to update, and how every account moved.' },
+  { route: '/networth/analytics', sel: '[data-tour=alloc]', up: '.grid', title: 'Insights: how it\'s spread', text: 'This page is about today: where your money sits, how fast you could reach it, what it earns in interest, and how much is at one bank compared with the deposit guarantee.' },
+  { route: '/networth/analytics', sel: '[data-tour=health]', title: 'Health check', text: 'A few rules of thumb — cash runway, idle cash, concentration, whether your balances are up to date. Guidelines, not laws.' },
+  { route: '/networth/accounts', sel: '[data-tour=capital]', title: 'Trading capital', text: 'Money in trading accounts stays outside your net worth. Note what you put in each year and the balance at year end; the difference is what you made — handy at tax time.' },
   { route: '/spending', sel: '#s-pace', up: '.card', title: 'Spending, month by month', text: 'Spending through the month vs last month and your budget. A month-end projection appears from day 7.' },
   { route: '/spending', sel: '.topbar [data-quick-add], [data-tour=add]', title: 'Log an expense in seconds', text: 'Amount, category, done — from any page with this button or the <kbd>N</kbd> key. Optionally take it off the account it was paid from.' },
   { route: '/spending/recurring', sel: '#main .tabs', title: 'Subscriptions & bills', text: 'Each subscription with the day it\'s charged — added automatically, with monthly and yearly totals.' },
   { route: '/journal', sel: '#jf fieldset', title: 'Journal', text: 'A two-minute daily check-in: mood, energy, stress, sleep, habits and what\'s on your mind.' },
   { route: '/journal/insights', sel: '[data-tour=mood-spend]', title: 'How you feel vs what you spend', text: 'Compares your everyday spending on good and bad days, calm and stressed days.' },
-  { route: '/settings', sel: '[data-act=export]', title: 'Back up', text: 'Your data lives only in this browser. Export a password-protected backup now and then.' },
+  { route: '/settings', sel: '[data-act=export]', title: 'Settings & backup', text: 'Budgets and spending categories live here in their own tabs. Your data lives only in this browser, so export a password-protected backup now and then.' },
   { sel: '[data-tour=help]', title: 'Help any time', text: 'Press <b>?</b> for help about the page you\'re on. That\'s it — the sample data is removed when you click Done.' },
 ];
 
 let tourEl = null, step = 0, withDemo = false, token = 0;
-const hasOwnData = () => ['nwAccounts', 'txns', 'recurring', 'nwSnapshots', 'withdrawals', 'days'].some(c => store.all(c).some(x => !x.demo));
+const hasOwnData = () => ['nwAccounts', 'txns', 'recurring', 'nwSnapshots', 'capital', 'days'].some(c => store.all(c).some(x => !x.demo));
 
 export async function startTour({ demo = true } = {}) {
   await endTour({ silent: true });

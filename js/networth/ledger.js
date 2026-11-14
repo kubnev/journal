@@ -1,6 +1,5 @@
-// Changing account balances from other parts of the app: an expense paid from an account, or a
-// withdrawal that lands in one. The change is written into that day's balance, so it shows up in
-// net worth right away; your next balance update simply overrides it with the real number.
+// Changing account balances from other parts of the app: an expense paid from an account.
+// The change is written into that day's balance, so it shows up in net worth right away; your next balance update simply overrides it with the real number.
 import * as store from '../store.js';
 import { valueAt } from './calc.js';
 import { conv, ccyOf } from '../fx.js';

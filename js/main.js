@@ -9,7 +9,6 @@ import * as SP from './spend/views.js';
 import { txnModal } from './spend/txn.js';
 import { postDueRecurring } from './spend/calc.js';
 import * as N from './networth/views.js';
-import { withdrawals } from './networth/withdrawals.js';
 import { maturities } from './networth/calc.js';
 import * as J from './journal/views.js';
 import { openHelp } from './help.js';
@@ -25,34 +24,25 @@ const I = {
   grid: 'M3 13h8V3H3zm0 8h8v-6H3zm10 0h8V11h-8zm0-18v6h8V3z',
   wallet: 'M3 7h18v12H3zM3 11h18M16 15h2',
   refresh: 'M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3M18 3v4h-4M6 21v-4h4',
-  flow: 'M4 17l6-6 4 4 6-8M14 7h6v6',
   pie: 'M12 3v9h9A9 9 0 1 1 12 3zM15 3.5A9 9 0 0 1 20.5 9H15z',
-  star: 'M12 2l3 7h7l-5.5 4.5 2 7.5L12 17l-6.5 4 2-7.5L2 9h7z',
   pen: 'M4 20h4L19 9l-4-4L4 16zM14 6l4 4',
   cal: 'M5 4h14v16H5zM5 9h14M9 2v4M15 2v4',
   bulb: 'M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z',
-  target: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM12 12h.01',
   list: 'M4 6h16M4 12h16M4 18h10',
   chart: 'M4 20V10M10 20V4M16 20v-7M22 20H2',
-  book: 'M4 4h7v16H4zM13 4h7v16h-7z',
-  bank: 'M3 10h18L12 4zM5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 20h18',
-  swap: 'M4 8h14l-4-4M20 16H6l4 4',
 };
 const NAV = [
   { group: null, items: [{ path: '/', label: 'Overview', icon: I.home }] },
   { id: 'networth', group: 'Money', items: [
     { path: '/networth', label: 'Net worth', icon: I.grid },
     { path: '/networth/accounts', label: 'Accounts', icon: I.wallet },
-    { path: '/networth/withdrawals', label: 'Withdrawals', icon: I.swap },
     { path: '/networth/analytics', label: 'Insights', icon: I.pie },
   ] },
   { id: 'spending', group: 'Spending', items: [
     { path: '/spending', label: 'Spending', icon: I.chart },
     { path: '/spending/transactions', label: 'Transactions', icon: I.list },
     { path: '/spending/calendar', label: 'Calendar', icon: I.cal },
-    { path: '/spending/budgets', label: 'Budgets', icon: I.target },
     { path: '/spending/recurring', label: 'Subscriptions & bills', icon: I.refresh },
-    { path: '/spending/categories', label: 'Categories', icon: I.book },
   ] },
   { id: 'journal', group: 'Journal', items: [
     { path: '/journal', label: 'Today', icon: I.pen },
@@ -71,25 +61,33 @@ function navGroups() {
 const chevron = raw('<svg class="nav-chev" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>');
 const grip = raw('<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>');
 
+// Settings has three tabs: general preferences & data, budgets, and spending categories
+const SETTINGS_TABS = [['/settings', 'Preferences & data'], ['/settings/budgets', 'Budgets'], ['/settings/categories', 'Categories']];
+function inSettings(view) {
+  return async (page, params, ctx) => {
+    const path = location.hash.replace(/^#/, '').split('?')[0];
+    page.innerHTML = String(html`<nav class="tabs settings-tabs" aria-label="Settings">${SETTINGS_TABS.map(([p, l]) => html`<a href="#${p}" class="${p === path ? 'on' : ''}">${l}</a>`)}</nav><div class="settings-body"></div>`);
+    return view(page.querySelector('.settings-body'), params, ctx);
+  };
+}
 const ROUTES = [
   [/^\/$/, homeView],
-  [/^\/settings$/, settingsView],
+  [/^\/settings$/, inSettings(settingsView)],
+  [/^\/settings\/budgets$/, inSettings(SP.budgets)],
+  [/^\/settings\/categories$/, inSettings(SP.categories)],
   [/^\/spending$/, SP.dashboard],
   [/^\/spending\/transactions$/, SP.transactions],
   [/^\/spending\/calendar$/, SP.calendar],
-  [/^\/spending\/budgets$/, SP.budgets],
   [/^\/spending\/recurring$/, SP.recurring],
-  [/^\/spending\/categories$/, SP.categories],
   [/^\/networth$/, N.overview],
   [/^\/networth\/accounts$/, N.accounts],
   [/^\/networth\/analytics$/, N.analytics],
-  [/^\/networth\/withdrawals$/, withdrawals],
   [/^\/journal$/, J.journalDay],
   [/^\/journal\/history$/, J.history],
   [/^\/journal\/insights$/, J.insights],
 ];
 // old links keep working
-const REDIRECTS = { '/networth/update': '/networth/accounts', '/networth/interest': '/networth', '/networth/plan': '/networth/analytics', '/networth/moves': '/networth', '/networth/flows': '/networth/withdrawals', '/setup': '/' };
+const REDIRECTS = { '/networth/update': '/networth/accounts', '/networth/interest': '/networth', '/networth/plan': '/networth/analytics', '/networth/moves': '/networth', '/networth/flows': '/networth/accounts', '/networth/withdrawals': '/networth/accounts', '/spending/budgets': '/settings/budgets', '/spending/categories': '/settings/categories', '/setup': '/' };
 
 const icon = d => raw(`<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg>`);
 
@@ -127,7 +125,7 @@ function renderShell(path) {
             <span class="nav-grip" data-grip="${g.id}" role="button" tabindex="0" title="Drag to move this section (or use ↑ ↓)" aria-label="Move the ${g.group} section">${grip}</span></div>
           <div class="nav-items">${g.items.filter(i => !shut || i === match).map(link)}</div></div>`; })}</nav>
     <div class="sidebar-foot">
-      <a href="#/settings" data-tour="settings" class="${path === '/settings' ? 'active' : ''}">${icon('M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z')}<span>Settings & data</span></a>
+      <a href="#/settings" data-tour="settings" class="${path.startsWith('/settings') ? 'active' : ''}">${icon('M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z')}<span>Settings</span></a>
       <div class="theme-switch" role="radiogroup" aria-label="Theme">${['light', 'dark', 'auto'].map(t => html`<button role="radio" data-theme-set="${t}" aria-checked="${(s.theme || 'auto') === t}">${THEME_LABEL[t]}</button>`)}</div>
       <div class="mode-badge" data-tour="mode" title="How much detail the forms ask for. Every page and chart is the same in both.">Input mode: <b>${mode === 'pro' ? 'Pro' : 'Simple'}</b> · <a href="#/settings">change</a></div>
     </div>`);

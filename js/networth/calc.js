@@ -3,7 +3,7 @@ import { all, getSettings } from '../store.js';
 import { toDisplay, ccyOf } from '../fx.js';
 import { today, dayKey, parseDay } from '../ui.js';
 
-// Display order: savings → bills & bonds → investments → things you own → cash (debts last).
+// Display order: savings → investments → things you own → cash (debts last).
 // ci = fixed colour slot, so a category keeps its colour whatever the order.
 // liquid: can be turned into cash within days without major loss
 export const ASSET_CATS = [
@@ -29,17 +29,16 @@ export const LIAB_CATS = [
   { id: 'tax', label: 'Taxes owed', shortTerm: true },
   { id: 'otherdebt', label: 'Other debt', shortTerm: false },
 ];
-// Simple input mode: five kinds of asset + debt. Every detailed category belongs to exactly one,
+// Simple input mode: four kinds of asset + debt. Every detailed category belongs to exactly one,
 // so switching modes never loses information (the detailed category is kept underneath).
 export const GROUPS = [
-  { id: 'savings', label: 'Savings', hint: 'Money you put aside — savings accounts, term deposits, money-market funds.', cat: 'savings', ci: 1 },
-  { id: 'bonds', label: 'Bills & bonds', hint: 'Treasury bills, government and corporate bonds you hold to maturity.', cat: 'bonds', ci: 2 },
+  { id: 'savings', label: 'Savings', hint: 'Money put aside at low risk — savings accounts, deposits, money-market funds, bills and bonds.', cat: 'savings', ci: 1 },
   { id: 'investments', label: 'Investments', hint: 'Long-term holdings — funds, stocks, pension, a share in a business.', cat: 'brokerage', ci: 3 },
   { id: 'assets', label: 'Assets', hint: 'Things you own outright — home, car, gold, watches, collectibles.', cat: 'otherasset', ci: 4 },
   { id: 'cash', label: 'Cash', hint: 'Money you spend day to day — current account, card balance, cash at home.', cat: 'cash', ci: 0 },
 ];
 export const DEBT = { id: 'debt', label: 'Debt', hint: 'Anything you owe — loans, credit card balance, money borrowed from someone.', cat: 'otherdebt' };
-const CAT_GROUP = { cash: 'cash', savings: 'savings', deposit: 'savings', bonds: 'bonds', brokerage: 'investments', retirement: 'investments', business: 'investments', realestate: 'assets', vehicle: 'assets', valuables: 'assets', receivable: 'assets', otherasset: 'assets' };
+const CAT_GROUP = { cash: 'cash', savings: 'savings', deposit: 'savings', bonds: 'savings', brokerage: 'investments', retirement: 'investments', business: 'investments', realestate: 'assets', vehicle: 'assets', valuables: 'assets', receivable: 'assets', otherasset: 'assets' };
 export const groupOf = a => (a.kind === 'liability' ? 'debt' : CAT_GROUP[a.category] || 'assets');
 export const groupInfo = id => GROUPS.find(g => g.id === id) || DEBT;
 export const simpleMode = () => getSettings().mode !== 'pro';
@@ -52,8 +51,8 @@ export const typeLabel = a => (simpleMode() ? groupInfo(groupOf(a)).label : catL
 export const catInfo = id => ASSET_CATS.find(c => c.id === id) || LIAB_CATS.find(c => c.id === id) || { id, label: id };
 export const catLabel = id => catInfo(id).label;
 export const isLiquid = a => (a.liquid === true || a.liquid === false ? a.liquid : !!catInfo(a.category).liquid);
-// kinds of account that can carry an interest rate and a maturity date
-export const canMature = a => a.kind !== 'liability' && ['savings', 'deposit', 'bonds'].includes(a.category);
+// kinds of account that can carry a maturity date (Pro input)
+export const canMature = a => a.kind !== 'liability' && ['deposit', 'bonds'].includes(a.category);
 
 // Who holds it
 export const CUSTODY = [
@@ -79,6 +78,9 @@ export function tierOf(a) {
   if (['deposit', 'retirement'].includes(a.category) && a.liquid !== true) return TIERS[2];
   return isLiquid(a) ? TIERS[1] : TIERS[3];
 }
+
+// money you can spend right away (cash and savings) — what cash runway is measured on
+export const cashAtHand = point => point.byTier[TIERS[0]] || 0;
 
 const sortedSnaps = () => [...all('nwSnapshots')].sort((a, b) => a.date.localeCompare(b.date));
 
@@ -228,15 +230,33 @@ export function bankExposure(point) {
   return [...m.values()].sort((a, b) => b.value - a.value);
 }
 
-// ---------- withdrawals & what moved your net worth ----------
-export const wdValue = w => toDisplay(+w.amount || 0, w.currency, w.date);
-const between = (list, from, to) => list.filter(x => x.date && x.date > from && x.date <= to);
-export const withdrawnBetween = (from, to) => between(all('withdrawals'), from, to).reduce((s, w) => s + wdValue(w), 0);
-export const spentBetween = (from, to) => between(all('txns').filter(x => !x.exclude && x.type !== 'income'), from, to).reduce((s, x) => s + toDisplay(+x.amount || 0, ccyOf(x), x.date), 0);
-// Between two balance updates: how much came in as withdrawals, how much you logged as spent, and
-// the rest (interest, changes in what things are worth, anything you didn't log).
-export function whatMoved(first, cur) {
-  if (!first || !cur || first.date >= cur.date) return null;
-  const change = cur.net - first.net, withdrawn = withdrawnBetween(first.date, cur.date), spent = spentBetween(first.date, cur.date);
-  return { from: first.date, to: cur.date, change, withdrawn, spent, other: change - withdrawn + spent };
+// ---------- currencies ----------
+// What you own per currency, in the display currency (biggest first)
+export function currencyExposure(point) {
+  const m = new Map();
+  for (const a of all('nwAccounts')) { const v = point.byAcct[a.id] || 0; if (a.kind === 'liability' || a.archivedAt || v <= 0) continue; const c = ccyOf(a) === 'USDT' ? 'USD' : ccyOf(a); m.set(c, (m.get(c) || 0) + v); }
+  return [...m.entries()].map(([currency, value]) => ({ currency, value })).sort((a, b) => b.value - a.value);
+}
+
+// ---------- balances that haven't been updated for a while ----------
+export function staleAccounts(days = 60) {
+  const t = parseDay(today());
+  return all('nwAccounts').filter(a => !a.archivedAt).map(a => ({ a, last: lastUpdateOf(a) })).filter(x => x.last)
+    .map(x => ({ ...x, days: Math.round((t - parseDay(x.last)) / 864e5) })).filter(x => x.days > days).sort((x, y) => y.days - x.days);
+}
+
+// ---------- trading capital (kept outside net worth) ----------
+// Per calendar year: what you put in (minus anything taken out), the balance you noted at the end
+// of the year, and the difference — a starting point for working out what you made.
+export function capitalYears() {
+  const m = new Map();
+  const yr = y => { if (!m.has(y)) m.set(y, { year: y, entries: [], put: 0, balance: null, bal: null }); return m.get(y); };
+  for (const c of all('capital')) {
+    if (!c.date) continue;
+    const y = yr(c.date.slice(0, 4));
+    if (c.kind === 'balance') { y.bal = c; y.balance = toDisplay(+c.amount || 0, c.currency, c.date <= today() ? c.date : today()); }
+    else { y.entries.push(c); y.put += toDisplay(+c.amount || 0, c.currency, c.date); }
+  }
+  yr(today().slice(0, 4));
+  return [...m.values()].map(y => ({ ...y, entries: y.entries.sort((a, b) => a.date.localeCompare(b.date)), result: y.balance != null ? y.balance - y.put : null })).sort((a, b) => b.year.localeCompare(a.year));
 }

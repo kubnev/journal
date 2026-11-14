@@ -5,7 +5,7 @@
 
 const F = {
   // ---------- net-worth account ----------
-  group: 'Pick the closest fit. Cash = spending money; Savings = money put aside; Bills & bonds = treasury bills and bonds; Investments = funds, stocks, pension; Assets = things you own; Debt = what you owe.',
+  group: 'Pick the closest fit. Cash = spending money; Savings = money put aside at low risk (savings, deposits, bills and bonds); Investments = funds, stocks, pension; Assets = things you own; Debt = what you owe.',
   kind: 'Asset = something you own (cash, investments, a home). Liability = something you owe (loan, card balance). Liabilities are subtracted from net worth.',
   category: 'Groups the account in charts and on Accounts, and decides the default for “Liquid?”.',
   'nf:name': 'Any name you’ll recognise, e.g. “Main bank EUR” or “Index fund”.',
@@ -21,16 +21,15 @@ const F = {
   'nf:notes': 'Anything you want to remember about this account.',
   d: 'The date you closed it. From this date the account counts as zero; history before it is kept.',
 
-  maturity: 'The day a term deposit, bill or bond pays back. It shows under Maturing on Net worth, and you get a reminder a week before.',
+  maturity: 'The day a term deposit, bill or bond pays back. It shows under Maturing on Insights, and you get a reminder a week before.',
   depositLimit: 'How much your country’s deposit guarantee covers per bank (100,000 € in the EU, 250,000 $ in the US). Insights flags a bank that holds more than this. Leave empty to turn the check off.',
-  // ---------- withdrawals ----------
-  'wdf:currency': 'The currency of the money that arrived. Totals are converted to your display currency at that day’s rate.',
-  'wdf:date': 'The day the money arrived. The year decides which year it counts in.',
-  'wdf:note': 'Anything that helps later, e.g. “monthly living money” or “took profits”.',
-  'wdf:amount': 'How much arrived, in the currency it arrived in.',
-  'wdf:source': 'Where the money came out of — a broker, an exchange, your business. Any name; totals are grouped by it.',
-  'wdf:accountId': 'The account the money landed in. Optional — only needed if you want its balance raised.',
-  'wdf:adjust': 'Raises that account’s balance today by this amount (converted to its currency). Leave it off if you’ll update the balance yourself — otherwise the money counts twice.',
+  // ---------- trading capital ----------
+  'capf:amount': 'Money you moved into your trading accounts. Count the capital you start a year with as put in on 1 January. Use a minus for money you took out.',
+  'capf:currency': 'The currency of that money. Yearly totals are converted to your display currency at that day’s rate.',
+  'capf:date': 'The day it went in. The year decides which year it counts in.',
+  'capf:note': 'Anything that helps later, e.g. “starting capital” or “top-up”.',
+  'capbf:amount': 'What all your trading accounts together were worth at the end of that year (or today, for the current year). Not added to your net worth.',
+  'capbf:currency': 'The currency of that balance.',
   usualSpending: 'What you normally spend in a month. Used for cash runway and your usual month only while there’s no recent logged spending — as soon as you log a week of it, your real average takes over.',
   emergencyMonths: 'How many months of spending you want to keep in cash and savings. 3–6 is the usual target.',
 
@@ -71,7 +70,6 @@ const F = {
   // ---------- budgets ----------
   'bf:total': 'Your spending limit for a whole month, in the display currency. Leave blank to use the sum of the category limits.',
 
-  adjust: 'Adds a deposit to (or takes a withdrawal off) the account’s balance today. Leave it off if you’ll type the new balance on Update balances anyway — otherwise it would count twice until then.',
 
   // ---------- journal ----------
   mood: 'How you feel overall today, from 😣 to 😄.',

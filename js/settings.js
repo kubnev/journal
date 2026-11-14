@@ -17,7 +17,7 @@ export default async function settingsView(el) {
   const counts = Object.fromEntries(store.COLLECTIONS.map(c => [c, store.all(c).length]));
 
   el.innerHTML = String(html`
-    <div class="page-head"><div><h1>Settings & data</h1><div class="sub">Preferences, backups, import/export.</div></div></div>
+    <div class="page-head"><div><h1>Settings</h1><div class="sub">Preferences, backups, import and export. Budgets and spending categories have their own tabs.</div></div></div>
     <div class="grid g2">
       <div class="stack">
         ${modeCard()}
@@ -51,7 +51,7 @@ export default async function settingsView(el) {
 
         <form class="card" id="lists">
           <div class="card-head"><h2>Lists</h2><span class="hint">One per line</span></div>
-          <p class="small muted" style="margin-top:0">Spending categories are edited on <a href="#/spending/categories">Spending → Categories</a>.</p>
+          <p class="small muted" style="margin-top:0">Spending categories and budgets have their own tabs above.</p>
           <div class="form-grid">
             <label class="field">Payment methods <span class="hint">Pro expense form</span><textarea name="payMethods" rows="7">${(s.payMethods || []).join('\n')}</textarea></label>
             <label class="field">Journal habits <span class="hint">ticked in the daily check-in</span><textarea name="habits" rows="7">${(s.habits || []).join('\n')}</textarea></label>
@@ -71,7 +71,7 @@ export default async function settingsView(el) {
           </div>
           <label class="check mt"><input type="checkbox" id="bk-remind" ${s.backupReminder !== false ? raw('checked') : ''}> Remind me to back up when the last backup is over a week old</label>
           <p class="small muted mt" style="margin-bottom:0">
-            ${counts.nwAccounts} accounts · ${counts.nwSnapshots} update days · ${counts.withdrawals} withdrawals · ${counts.txns} expenses · ${counts.recurring} bills & subscriptions · ${counts.days} journal entries
+            ${counts.nwAccounts} accounts · ${counts.nwSnapshots} update days · ${counts.capital} trading-capital notes · ${counts.txns} expenses · ${counts.recurring} bills & subscriptions · ${counts.days} journal entries
             ${est ? html`<br>Using ${(est.usage / 1048576).toFixed(1)} MB of local storage.` : ''}
           </p>
         </div>
@@ -102,7 +102,7 @@ export default async function settingsView(el) {
 
         <div class="card">
           <div class="card-head"><h2>Danger zone</h2></div>
-          <p class="small muted">Wipe every expense, bill, account, balance, withdrawal, journal entry and setting from this browser. Export a backup first if you want to keep anything.</p>
+          <p class="small muted">Wipe every expense, bill, account, balance, journal entry and setting from this browser. Export a backup first if you want to keep anything.</p>
           <button class="btn danger" data-act="wipe">Delete all data…</button>
         </div>
       </div>

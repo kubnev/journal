@@ -2,13 +2,13 @@
 // writes go straight through to the database.
 
 const DB_NAME = 'journal';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const OLD_DB = 'ledgerline';   // the app's previous name — copied over once, then removed
 
 export const COLLECTIONS = [
   'nwAccounts',    // net worth: assets & debts
   'nwSnapshots',   // net worth: dated balances
-  'withdrawals',   // money moved out of brokers, exchanges or a business into your real accounts
+  'capital',       // trading capital kept outside net worth: money put in per year, and year-end balances
   'txns',          // spending: one record per expense
   'recurring',     // spending: bills & subscriptions
   'days',          // journal: one entry per day (id = YYYY-MM-DD)
@@ -57,23 +57,20 @@ function openDb(name, version, upgrade) {
 const openMain = () => openDb(DB_NAME, DB_VERSION, (d, _e, r) => {
   for (const c of COLLECTIONS) if (!d.objectStoreNames.contains(c)) d.createObjectStore(c, { keyPath: 'id' });
   if (!d.objectStoreNames.contains(META_STORE)) d.createObjectStore(META_STORE, { keyPath: 'key' });
-  // version 1 kept deposits and withdrawals per account; only the withdrawals carry over
-  if (d.objectStoreNames.contains(OLD_FLOWS)) {
-    const tx = r.transaction, accts = tx.objectStore('nwAccounts').getAll();
-    accts.onsuccess = () => { const flows = tx.objectStore(OLD_FLOWS).getAll(); flows.onsuccess = () => {
-      for (const w of flowsToWithdrawals(flows.result, accts.result)) tx.objectStore('withdrawals').put(w);
-      d.deleteObjectStore(OLD_FLOWS);
-    }; };
+  // earlier versions kept deposits / withdrawals in their own stores: they become trading-capital entries
+  const tx = r.transaction;
+  for (const [old, conv] of [[OLD_FLOWS, flowsToCapital], [OLD_WD, withdrawalsToCapital]]) if (d.objectStoreNames.contains(old)) {
+    const q = tx.objectStore(old).getAll();
+    q.onsuccess = () => { for (const c of conv(q.result)) tx.objectStore('capital').put(c); d.deleteObjectStore(old); };
   }
 });
 
 // ---------- records from older versions ----------
-const OLD_FLOWS = 'nwFlows';
-// "took out of an account" entries become withdrawals; deposits into brokers are dropped
-export function flowsToWithdrawals(flows, accounts) {
-  const name = id => accounts.find(a => a.id === id)?.name || '';
-  return (flows || []).filter(f => f && f.dir === 'out' && +f.amount > 0 && f.date).map(f => ({ id: f.id, date: f.date, amount: +f.amount, currency: f.currency, source: name(f.accountId), accountId: '', note: f.note || '', applied: null, ...(f.demo ? { demo: true } : {}), createdAt: f.createdAt, updatedAt: f.updatedAt }));
-}
+const OLD_FLOWS = 'nwFlows', OLD_WD = 'withdrawals';
+const capIn = (o, amount, note) => ({ id: o.id, kind: 'in', date: o.date, amount, currency: o.currency, note: (note || '').slice(0, 80), ...(o.demo ? { demo: true } : {}), createdAt: o.createdAt, updatedAt: o.updatedAt });
+// money put into an account counts as capital in; money taken out as capital out (a negative amount)
+export const flowsToCapital = flows => (flows || []).filter(f => f && +f.amount > 0 && f.date).map(f => capIn(f, f.dir === 'out' ? -f.amount : +f.amount, f.note || (f.dir === 'out' ? 'Took out' : '')));
+export const withdrawalsToCapital = list => (list || []).filter(w => w && +w.amount > 0 && w.date).map(w => capIn(w, -w.amount, ['Took out', w.source, w.note].filter(Boolean).join(' · ')));
 // Accounts no longer list holdings or use the crypto / trading categories: they become plain
 // accounts under Investments, keeping every recorded balance. Returns the same object if nothing changed.
 const OLD_CATS = { crypto: 'brokerage', trading: 'brokerage', margin: 'otherdebt' };
@@ -102,12 +99,12 @@ async function moveOldDatabase() {
     old = await openDb(OLD_DB, undefined, (_d, e, r) => { if (e.oldVersion === 0) r.transaction.abort(); });
   } catch { return; }
   try {
-    const stores = [...COLLECTIONS, OLD_FLOWS, META_STORE].filter(c => old.objectStoreNames.contains(c));
+    const stores = [...COLLECTIONS, OLD_FLOWS, OLD_WD, META_STORE].filter(c => old.objectStoreNames.contains(c));
     const tx = old.transaction(stores, 'readonly');
     const data = Object.fromEntries(await Promise.all(stores.map(async c => [c, await req(tx.objectStore(c).getAll())])));
     const drop = o => o.type === 'income';
     const wtx = db.transaction([...COLLECTIONS, META_STORE], 'readwrite');
-    data.withdrawals = [...(data.withdrawals || []), ...flowsToWithdrawals(data[OLD_FLOWS], data.nwAccounts || [])];
+    data.capital = [...(data.capital || []), ...flowsToCapital(data[OLD_FLOWS]), ...withdrawalsToCapital(data[OLD_WD])];
     for (const c of COLLECTIONS) for (const o of data[c] || []) if (!drop(o)) wtx.objectStore(c).put(o);
     for (const m of data[META_STORE] || []) wtx.objectStore(META_STORE).put(m);
     await txDone(wtx);
@@ -208,7 +205,7 @@ const isObj = o => o && typeof o === 'object' && !Array.isArray(o);
 const okId = id => (typeof id === 'string' && id.length > 0 && id.length < 200) || Number.isFinite(id);
 export function validateBackup(obj) {
   if (!isObj(obj) || !isOurApp(obj.app) || !isObj(obj.data)) throw new Error('This file is not a backup from this app.');
-  for (const c of [...COLLECTIONS, OLD_FLOWS]) {
+  for (const c of [...COLLECTIONS, OLD_FLOWS, OLD_WD]) {
     const list = obj.data[c];
     if (list == null) continue;
     if (!Array.isArray(list)) throw new Error(`Backup is damaged ("${c}" is not a list).`);
@@ -240,7 +237,7 @@ export async function importBackup(obj, { mode = 'replace' } = {}) {
   validateBackup(obj);
   if (mode === 'replace') await clearAll({ keepSettings: true });
   // backups from older versions: convert what still applies
-  const data = { ...obj.data, nwAccounts: (obj.data.nwAccounts || []).map(tidyAccount), withdrawals: [...(obj.data.withdrawals || []), ...flowsToWithdrawals(obj.data[OLD_FLOWS], obj.data.nwAccounts || [])] };
+  const data = { ...obj.data, nwAccounts: (obj.data.nwAccounts || []).map(tidyAccount), capital: [...(obj.data.capital || []), ...flowsToCapital(obj.data[OLD_FLOWS]), ...withdrawalsToCapital(obj.data[OLD_WD])] };
   for (const c of COLLECTIONS) if (Array.isArray(data[c]) && data[c].length) {
     const tx = db.transaction(c, 'readwrite');
     for (const o of data[c]) {

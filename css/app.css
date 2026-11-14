@@ -555,10 +555,6 @@ body.privacy #main input[type=number]:focus, body.privacy .modal-wrap input[type
 .link-btn:hover { text-decoration: underline; }
 @media (max-width: 640px) { .bal-input { width: 100px; } .bulk-bar { position: static; } }
 
-/* ---------- what moved net worth ---------- */
-.moved { display: flex; align-items: stretch; gap: 10px; flex-wrap: wrap; }
-.moved > div { flex: 1 1 150px; display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; background: var(--surface-2); border-radius: 8px; min-width: 0; }
-.moved > div b { font-family: var(--font-serif); font-size: 21px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.moved .op { align-self: center; color: var(--text-3); font-size: 18px; flex: none; }
-@media (max-width: 640px) { .moved .op { display: none; } }
-
+/* ---------- trading capital ---------- */
+tr.cap-entry td { padding-top: 5px; padding-bottom: 5px; border-top: 0; background: var(--surface-2); }
+.settings-tabs { margin-bottom: 20px; }

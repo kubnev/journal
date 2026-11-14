@@ -4,48 +4,39 @@ import { startTour } from './tour.js';
 
 const GUIDE = [
   { id: 'overview', title: 'Overview', match: p => p === '/', body: `
-    <p>Your home page, net worth first: net worth and how it changed, liquid net worth, estimated interest, the net-worth trend and where your money sits — then your largest accounts, cash runway, today's journal and a short look at this month's spending.</p>
+    <p>One glance across the three parts: your net worth and how it changed, what you spent this month, how long your cash would last, the net-worth trend, today's journal with the last seven days, and this month's spending with the bills coming up.</p>
     <ul><li>Everything is worked out from what you entered. Where there isn't enough yet, it says so instead of guessing.</li>
     <li><b>Update balances</b> every so often (monthly is plenty) — each update is a point on your net-worth history.</li>
     <li><b>+ Expense</b> (or the <kbd>N</kbd> key) logs spending from any page.</li></ul>` },
   { id: 'nw', title: 'Net worth', match: p => p === '/networth', body: `
-    <p>Net worth = everything you own − everything you owe. It's built from your <b>balance updates</b>: the value of each account on a date. Accounts you don't update keep their last value.</p>
-    <ul><li><b>Change per update</b> — how much net worth moved between balance updates.</li>
-    <li><b>What moved it</b> — the change between two updates split into what you withdrew, what you spent and everything else (interest, value changes, anything not logged).</li>
-    <li><b>Interest</b> — what accounts with an APY would earn per day, month and year at today's balances. Only an estimate: nothing is added to your balances.</li>
-    <li><b>Maturing</b> — term deposits, bills and bonds with a maturity date, soonest first.</li>
-    <li><b>Liquid net worth</b> counts only what you could reach in days, minus all debts.</li>
-    <li><b>Cash runway</b> — how many months your cash and savings cover your usual spending (from your recent logged spending, or the usual monthly spending you set in Settings).</li>
-    <li>The range buttons (1Y/3Y/5Y) zoom the charts. With a single update the trend charts wait for your second one.</li></ul>` },
+    <p>How your net worth moved over time. Net worth = everything you own − everything you owe, built from your <b>balance updates</b>; accounts you don't update keep their last value.</p>
+    <ul><li><b>Growth per year</b> — the steady yearly rate from the first update in the range to today (needs a year of history).</li>
+    <li><b>Change per update</b> — how much net worth moved between one update and the next.</li>
+    <li><b>What it's made of, over time</b> — your assets by type, stacked.</li>
+    <li><b>Account by account</b> — each balance, how it changed since the previous update, and its trend.</li>
+    <li>The range buttons (1Y/3Y/5Y) zoom everything. With a single update the charts wait for your second one.</li></ul>
+    <p>How your money is spread and how healthy it looks today is on <b>Insights</b>.</p>` },
   { id: 'accounts', title: 'Accounts', match: p => p === '/networth/accounts', body: `
-    <p>Every asset and debt, grouped by type (Savings, Bills & bonds, Investments, Assets, Cash, Debt — or the detailed categories in Pro input). Each group shows its total and share of your assets; the chips at the top jump to a group.</p>
+    <p>Every asset and debt, grouped by type (Savings, Investments, Assets, Cash, Debt — or the detailed categories in Pro input). Each group shows its total and share of your assets; the chips at the top jump to a group.</p>
     <ul><li><b>Update</b> — record a new balance (today or an earlier date). The old value stays in the account's history; delete a wrong entry from the same dialog. <b>Update all</b> does every account in one go.</li>
-    <li><b>Edit</b> — change the account itself: name, type, currency, interest rate, maturity date. Close or delete it from there too.</li>
-    <li><b>Interest / yield (APY)</b> — savings accounts, money-market funds, term deposits, bills and bonds. Used for the interest estimates on Net worth; balances never grow on their own.</li>
-    <li><b>Matures on</b> — for term deposits, bills and bonds. Net worth lists what's maturing, and you get a reminder a week before.</li>
-    <li><b>Institution</b> (Pro) — the bank or broker. Insights adds up your bank money per institution and compares it with the deposit guarantee limit.</li>
-    <li><b>Purpose</b> (Pro) — e.g. Emergency fund, Safe reserve. Shows as buckets in Insights.</li>
-    <li><b>Currency</b> — each account keeps its own; totals are converted to your display currency with ECB rates.</li>
-    <li><b>Close</b> an account (Edit → Close) when it's sold, matured or paid off — its history stays.</li></ul>` },
-  { id: 'withdrawals', title: 'Withdrawals', match: p => p === '/networth/withdrawals', body: `
-    <p>Log money each time you move it out of a broker, an exchange or a business into your real accounts. Per year you see how much came out, the average per month, where it came from — and how it compares with the spending you logged.</p>
-    <ul><li><b>From</b> — any name you like (Broker, Exchange, Business…). Names you've used are suggested next time.</li>
-    <li><b>Into</b> — optionally the account it landed in. Tick <b>Add it to that account's balance today</b> to raise that balance right away; leave it off if you'll update the balance yourself, or it would count twice.</li>
-    <li><b>Kept</b> = withdrawn − spent. Negative means you spent more than you took out, so the difference came from what you already had.</li>
-    <li>Net worth shows <b>What moved it</b>: the change between two balance updates, split into withdrawals, spending and everything else.</li>
-    <li><b>Export CSV</b> gives every withdrawal of the year plus totals per source — handy for your own records.</li></ul>` },
+    <li><b>Edit</b> — change the account itself: name, type, currency, interest rate. Close or delete it from there too.</li>
+    <li><b>Interest / yield (APY)</b> — savings, money-market funds, deposits, bills and bonds. Used for the interest estimates on Insights; balances never grow on their own.</li>
+    <li><b>Pro input</b> adds institution, purpose, liquidity and — for term deposits and bonds — a maturity date with a reminder a week before.</li>
+    <li><b>Close</b> an account (Edit → Close) when it's sold or paid off — its history stays.</li></ul>
+    <p><b>Trading capital</b> (bottom of the page) is for money you don't count as yours yet. Add what you put into your trading accounts in a year — count the capital you start the year with as put in on 1 January, and use a minus for money taken out — then set the balance at the end of the year. Result = balance − put in. It never touches your net worth; it's a starting point for your tax records.</p>` },
   { id: 'analytics', title: 'Insights', match: p => p === '/networth/analytics', body: `
-    <ul><li><b>Who holds it</b> — banks, brokers, the state, or you (property and things at home).</li>
-    <li><b>Most at one bank</b> — bank money added up per bank. Deposit guarantee schemes cover a fixed amount per bank (set yours in Settings); anything above it is unprotected if that bank fails.</li>
-    <li><b>Liquidity ladder</b> — instant cash → sellable within days → locked until a date → illiquid.</li>
-    <li><b>Balance-sheet health</b> — rules of thumb (cash runway, debt-to-asset, idle cash, concentration…). Guidelines, not laws.</li>
+    <p>How your money is spread and how healthy it looks <b>today</b>. (How it changed over time is on Net worth.)</p>
+    <ul><li><b>Where it sits</b> and <b>how fast you could reach it</b> — assets by type, and a ladder from instant cash to illiquid.</li>
+    <li><b>Interest</b> — what each account with an APY would earn per day, month and year, what your debts cost, and cash that earns nothing. Estimates only.</li>
+    <li><b>Banks</b> — bank money added up per bank against the deposit guarantee limit (set yours in Settings); anything above it is unprotected if that bank fails. With more than one currency you also see your split by currency.</li>
+    <li><b>Health check</b> — rules of thumb: cash runway against your target, liquid runway, interest vs spending, idle cash, concentration, and whether your balances are up to date.</li>
     <li><b>Target allocation</b> — set a target % per type. Red drift = outside the rebalancing band (5 points, or 25% of the target if smaller).</li></ul>` },
   { id: 'spending', title: 'Spending', match: p => p === '/spending', body: `
     <p>Month-by-month view of where your money goes. Use ← → to move between months.</p>
     <ul><li><b>Spending through the month</b> — cumulative spending vs last month and your budget pace.</li>
     <li><b>Usual month</b> — your average monthly spending from what you've logged lately (up to 90 days, at least a week). With no recent spending it uses the amount set in Settings.</li>
     <li><b>Projected month-end</b> = spent so far + your average daily spend for the remaining days + bills still due. Shown from day 7 of the month.</li>
-    <li><b>Needs vs wants</b> — how this month's spending splits. Each category is a need or a want — change it on Categories.</li></ul>` },
+    <li><b>Needs vs wants</b> — how this month's spending splits. Each category is a need or a want — change it in Settings → Categories.</li></ul>` },
   { id: 'transactions', title: 'Transactions', match: p => p === '/spending/transactions', body: `
     <p>Every expense, grouped by day. Filter by category or text; switch to <b>All time</b> to search everything.</p>
     <ul><li>Click an expense to edit or delete it.</li>
@@ -53,7 +44,7 @@ const GUIDE = [
     <li><b>Import CSV</b> takes your bank's statement export: money going out becomes expenses, money coming in is skipped, duplicates are skipped and merchants you've categorised before are recognised.</li>
     <li>Moving money between your own accounts isn't spending — just update both balances.</li></ul>` },
   { id: 'calendar', title: 'Calendar', match: p => p === '/spending/calendar', body: `<p>Each day shows what you spent (darker = more) and 🔁 bills that are coming up. Click a day to see its expenses or add one on that date. "—" marks a no-spend day.</p>` },
-  { id: 'budgets', title: 'Budgets', match: p => p === '/spending/budgets', body: `
+  { id: 'budgets', title: 'Budgets', match: p => p === '/settings/budgets', body: `
     <p>Set a total monthly budget and, optionally, limits for the categories you want to watch.</p>
     <ul><li>The marker on each bar is where you'd be if you spent evenly through the month — ahead of it means slow down.</li>
     <li><b>Fill from my averages</b> pre-fills each limit with your recent average.</li>
@@ -64,13 +55,13 @@ const GUIDE = [
     <li><b>Take each charge off the account's balance</b> keeps that account's balance current between your updates.</li>
     <li><b>Pause</b> a subscription you cancelled — no more charges are added.</li>
     <li>Subscriptions per year make forgotten ones visible — review them once a year.</li></ul>` },
-  { id: 'categories', title: 'Categories', match: p => p === '/spending/categories', body: `<p>Rename, add or remove spending categories and choose whether each is a <b>need</b> or a <b>want</b>. Pro input adds subcategories. 10–20 categories is the sweet spot.</p>` },
+  { id: 'categories', title: 'Categories', match: p => p === '/settings/categories', body: `<p>Rename, add or remove spending categories and choose whether each is a <b>need</b> or a <b>want</b>. Pro input adds subcategories. 10–20 categories is the sweet spot.</p>` },
   { id: 'journal', title: 'Journal', match: p => p === '/journal', body: `
     <p>A two-minute daily check-in: mood, energy, stress, sleep, habits and a few lines on what's on your mind. Use ← → or the date picker to fill in or read other days.</p>
     <ul><li>Habits to tick are set in Settings → Lists.</li><li>Pro input adds "what went well / what was hard" and tags.</li><li>Entries stay in this browser like everything else.</li></ul>` },
   { id: 'jhistory', title: 'Journal history', match: p => p === '/journal/history', body: `<p>A calendar of your entries (emoji = mood) with what you spent each day, a year of consistency at a glance, and the month's entries to read back.</p>` },
   { id: 'jinsights', title: 'Journal insights', match: p => p === '/journal/insights', body: `<p>Mood, energy and stress over time, habit completion, sleep — and <b>how you feel vs what you spend</b>: average everyday spending on good vs low mood days, calm vs stressed days, rested vs tired days. Bills are left out so only day-to-day choices count. Small samples are noisy — a prompt for reflection, not a verdict.</p>` },
-  { id: 'settings', title: 'Settings & data', match: p => p === '/settings', body: `<ul><li><b>Backups</b> — your data lives only in this browser. Export a backup now and then (you can get a weekly reminder). Backups are encrypted with a password you choose — keep it somewhere safe, a lost password can't be recovered.</li><li><b>Delete all data</b> — the Danger zone wipes everything this app stored in this browser.</li><li><b>Lists</b> — payment methods, journal habits and tags. <b>Transactions CSV</b> — import your bank statement or export everything.</li><li><b>Check for update</b> — load the newest version.</li></ul>` },
+  { id: 'settings', title: 'Settings & data', match: p => p === '/settings', body: `<ul><li><b>Backups</b> — your data lives only in this browser. Export a backup now and then (you can get a weekly reminder). Backups are encrypted with a password you choose — keep it somewhere safe, a lost password can't be recovered.</li><li><b>Delete all data</b> — the Danger zone wipes everything this app stored in this browser.</li><li><b>Budgets</b> and <b>Categories</b> — the two tabs at the top.</li><li><b>Lists</b> — payment methods, journal habits and tags. <b>Transactions CSV</b> — import your bank statement or export everything.</li><li><b>Check for update</b> — load the newest version.</li></ul>` },
   { id: 'general', title: 'Simple / Pro, themes & shortcuts', match: () => false, body: `<ul><li><b>Simple / Pro input</b> (Settings → Input mode) decides how much you fill in when adding accounts, expenses and journal entries. Every page and chart is the same in both, and switching never deletes anything.</li><li><b>Privacy mode</b> — the eye button (top right) or the <kbd>H</kbd> key hides every amount as “$•••”, for using the app in public. Press again to show them.</li><li><b>Sidebar</b> — click a section title (Net worth, Spending, Journal) to fold it away; drag the ⠿ handle that appears on hover to move a section up or down (or focus it and use ↑ ↓). Settings → Reset sidebar restores the original layout.</li><li><b>Theme</b> — Light, Dark or Auto (follows your device).</li><li>Press <kbd>?</kbd> anywhere to open this help.</li><li>Everything is stored in this browser (IndexedDB). Nothing is uploaded.</li><li><b>N</b> — add an expense from any page.</li></ul>` },
 ];
 

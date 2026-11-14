@@ -6,7 +6,7 @@ import { dayKey, monthKey } from './ui.js';
 import { nextDate } from './spend/calc.js';
 
 function rng(seed) { return () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
-const COLS = ['nwAccounts', 'nwSnapshots', 'withdrawals', 'txns', 'recurring', 'days'];
+const COLS = ['nwAccounts', 'nwSnapshots', 'capital', 'txns', 'recurring', 'days'];
 
 export const hasDemo = () => COLS.some(c => store.all(c).some(x => x.demo));
 export async function removeDemo() {
@@ -114,20 +114,13 @@ export async function loadDemo() {
     mortgage: A('Mortgage', 'liability', 'mortgage', { currency: 'EUR', institution: 'Main bank', rate: 3.4, payment: 820 }),
     cc: A('Credit card', 'liability', 'credit', { currency: 'EUR', institution: 'Card issuer', rate: 21 }),
   };
-  // withdrawals from a broker and an exchange over the months that also have spending logged
-  const wds = [], wdBy = {};
-  for (let i = 5; i >= 0; i--) {
-    const add = (day, source, amount, note) => { const date = inMonths(-i, day); if (date > todayK) return; wds.push({ id: id(), demo: true, date, amount, currency: 'EUR', source, accountId: nw.checking.id, note, applied: null }); wdBy[i] = (wdBy[i] || 0) + amount; };
-    add(5, 'Broker', Math.round(between(3800, 6200) / 100) * 100, 'Monthly living money');
-    if (R() < 0.5) add(19, 'Exchange', Math.round(between(1200, 3200) / 100) * 100, 'Took profits');
-  }
   const M = 30;
   const snaps = [];
   let v = { checking: 3800, cashHome: 1500, hysa: 9000, mmf: 6000, deposit: 20000, bill: 15000, bond: 25000, pension: 18000, home: 185000, car: 19000, gold: 6500, mortgage: 142000, cc: 900 };
   for (let i = M; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    // what's left of the month before: withdrawn minus spent (earlier months: a rough amount)
-    const saved = i < 5 ? (wdBy[i + 1] || 0) - between(2700, 3300) : Math.round(Math.max(-800, 1300 + normal() * 900));
+    // what was put aside that month
+    const saved = Math.round(Math.max(-800, 1300 + normal() * 900));
     if (i < M) {
       v.hysa = v.hysa * (1 + 0.0275 / 12) + saved * 0.6;
       v.mmf = v.mmf * (1 + 0.046 / 12) + saved * 0.25;
@@ -151,9 +144,17 @@ export async function loadDemo() {
   await store.putMany('recurring', bills.map(b => ({ ...b, accountId: b.category === 'subscriptions' && b.method === 'Credit card' ? nw.cc.id : nw.checking.id, deduct: false })));
   await store.putMany('txns', txns.filter(t => t.recurringId).map(t => ({ ...t, accountId: store.get('recurring', t.recurringId)?.accountId || '' })));
   await store.putMany('nwSnapshots', snaps.filter(s => !store.all('nwSnapshots').some(x => x.date === s.date)));
-  await store.putMany('withdrawals', wds);
+  // trading capital kept outside net worth: what went in each year and the balance at the end
+  const Y = now.getFullYear();
+  await store.putMany('capital', [
+    { id: id(), demo: true, kind: 'in', date: `${Y - 1}-01-01`, amount: 60000, currency: 'EUR', note: 'Starting capital' },
+    { id: `bal-${Y - 1}`, demo: true, kind: 'balance', date: `${Y - 1}-12-31`, amount: 78500, currency: 'EUR' },
+    { id: id(), demo: true, kind: 'in', date: `${Y}-01-01`, amount: 70000, currency: 'EUR', note: 'Starting capital' },
+    ...(now.getMonth() >= 3 ? [{ id: id(), demo: true, kind: 'in', date: `${Y}-03-10`, amount: 10000, currency: 'EUR', note: 'Top-up' }] : []),
+    { id: `bal-${Y}`, demo: true, kind: 'balance', date: todayK, amount: 96400, currency: 'EUR' },
+  ]);
   // a sample target allocation (never touches your own targets); removed with the demo
   const pl = store.getSettings().plan;
   const simple = store.getSettings().mode !== 'pro';
-  if (!Object.keys(pl.targetAllocation || {}).length) await store.saveSettings({ plan: { targetAllocation: simple ? { cash: 3, savings: 15, bonds: 14, investments: 8, assets: 60 } : { cash: 3, savings: 9, deposit: 6, bonds: 14, retirement: 8, realestate: 53, vehicle: 4, valuables: 3 } }, demoTargets: true });
+  if (!Object.keys(pl.targetAllocation || {}).length) await store.saveSettings({ plan: { targetAllocation: simple ? { cash: 3, savings: 29, investments: 8, assets: 60 } : { cash: 3, savings: 9, deposit: 6, bonds: 14, retirement: 8, realestate: 53, vehicle: 4, valuables: 3 } }, demoTargets: true });
 }

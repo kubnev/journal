@@ -1,7 +1,7 @@
 import * as store from '../store.js';
 import { html, raw, money, pct, num, pnlClass, stat, fmtDate, today, modal, toast, confirmDlg, formData, toNum, parseDay, dayKey } from '../ui.js';
 import * as C from '../charts.js';
-import { ASSET_CATS, LIAB_CATS, assetCats, liabCats, GROUPS, DEBT, groupOf, groupInfo, simpleMode, typeLabel, isLiquid, nwSeries, pointAt, baseline, changes, debtMetrics, interestOverview, lastUpdateOf, catKey, CUSTODY, custodyOf, custodyLabel, PURPOSES, purposeOf, TIERS, positions, concentration, canMature, maturities, bankExposure, whatMoved } from './calc.js';
+import { ASSET_CATS, LIAB_CATS, assetCats, liabCats, GROUPS, DEBT, groupOf, groupInfo, simpleMode, typeLabel, isLiquid, nwSeries, pointAt, baseline, changes, debtMetrics, interestOverview, lastUpdateOf, catKey, CUSTODY, custodyOf, custodyLabel, PURPOSES, purposeOf, TIERS, positions, concentration, canMature, maturities, bankExposure, currencyExposure, staleAccounts, capitalYears, cashAtHand } from './calc.js';
 import { ccyOf, moneyIn, ccySelect, displayCcy, sameMoney } from '../fx.js';
 import { go, refresh, query } from '../main.js';
 
@@ -31,7 +31,7 @@ export function dateLabels(dates) {
   return span <= 200 ? dates.map(d => fmtDate(d, { month: 'short', day: 'numeric' })) : dates.map(monthYear);
 }
 
-// The type order used everywhere (Savings → Bills & bonds → Investments → Assets → Cash → Debt, or the Pro
+// The type order used everywhere (Savings → Investments → Assets → Cash → Debt, or the Pro
 // categories in the same order); inside a type, the biggest balance first.
 const typeList = () => [...assetCats().map(c => ({ ...c, debt: false })), ...liabCats().map(c => ({ ...c, debt: true }))];
 const typeIdx = a => typeList().findIndex(t => t.id === catKey(a) && t.debt === (a.kind === 'liability'));
@@ -49,7 +49,7 @@ export function typeBreakdown(cur) {
 export const lastUpdate = () => store.all('nwSnapshots').map(s => s.date).filter(d => d <= today()).sort().at(-1) || null;
 const notEnough = text => html`<div class="not-enough"><b>Not enough data yet</b><span>${text}</span></div>`;
 
-// ================= interest (estimates on the Net worth page) =================
+// ================= interest (estimates, shown on Insights) =================
 export function interestCard(io = interestOverview()) {
   return html`<div class="card mt" data-tour="interest"><div class="card-head"><h2>Interest</h2><span class="hint">estimates at today's balances — nothing is added for you</span></div>
     ${io.earn.length ? html`<div class="interest-sum">
@@ -68,11 +68,11 @@ export function interestCard(io = interestOverview()) {
   </div>`;
 }
 
-// ================= overview =================
+// ================= net worth: how it changed over time =================
 export async function overview(el) {
   const accts = store.all('nwAccounts');
   const allSeries = nwSeries();
-  el.innerHTML = String(html`<div class="page-head"><div><h1>Net worth</h1><div class="sub">${allSeries.length ? `Last updated ${fmtDate(lastUpdate())}` : 'Everything you own minus everything you owe.'}</div></div>
+  el.innerHTML = String(html`<div class="page-head"><div><h1>Net worth</h1><div class="sub">${allSeries.length ? `How it has moved, update by update. Last updated ${fmtDate(lastUpdate())}.` : 'Everything you own minus everything you owe.'}</div></div>
     <div class="actions">${allSeries.length > 2 ? html`<div class="seg" id="rng">${RANGES.map(([k, l]) => html`<button data-r="${k}" class="${range === k ? 'on' : ''}">${l}</button>`)}</div>` : ''}<a class="btn primary" href="#/networth/accounts?update=1">Update balances</a></div></div><div id="body"></div>`);
   const body = el.querySelector('#body');
   if (!accts.length || !allSeries.length) { body.innerHTML = String(emptyNW()); return; }
@@ -84,101 +84,66 @@ export async function overview(el) {
     const cur = allSeries.at(-1), prev = allSeries.at(-2), first = series[0];
     const ch = prev ? cur.net - prev.net : null;
     const chRange = first && first !== cur ? cur.net - first.net : null;
-    const base = baseline();
-    const debt = debtMetrics(cur);
-    const efMonths = base.avgExpenses ? ((cur.byCat.cash || 0) + (cur.byCat.savings || 0)) / base.avgExpenses : null;
-    const io = interestOverview();
     const p = C.palette();
-    const aCats = assetCats().filter(c => (cur.byCat[c.id] || 0) > 0);
-    const lCats = liabCats().filter(c => (cur.byCat[c.id] || 0) > 0);
-    const liquidShare = cur.assets ? cur.liquid / cur.assets : null;
     const chg = changes(series);
     const one = series.length < 2;
-    const wm = whatMoved(first, cur);
-    const sgn = v => money(v, { sign: true });
-    const movedCard = wm && (wm.withdrawn || wm.spent) ? html`<div class="card mt" data-tour="moved"><div class="card-head"><h2>What moved it</h2><span class="hint">${fmtDate(wm.from)} → ${fmtDate(wm.to)}</span></div>
-      <div class="moved">
-        <div><span class="stat-label">Net worth change</span><b class="${pnlClass(wm.change)}">${sgn(wm.change)}</b></div><span class="op">=</span>
-        <div><span class="stat-label">Withdrawn</span><b>${sgn(wm.withdrawn)}</b><a class="small" href="#/networth/withdrawals">Withdrawals →</a></div><span class="op">−</span>
-        <div><span class="stat-label">Spent</span><b>${money(wm.spent)}</b><a class="small" href="#/spending">Spending →</a></div><span class="op">+</span>
-        <div><span class="stat-label">Everything else</span><b class="${pnlClass(wm.other)}">${sgn(wm.other)}</b><span class="small muted">not logged</span></div>
-      </div>
-      <p class="small muted" style="margin:10px 0 0">Everything else is what's left over: interest, changes in what things are worth, and money that came in or went out without being logged. A large negative number usually means spending you didn't log.</p></div>` : '';
-    const mats = maturities();
-    const matCard = mats.length ? html`<div class="card mt" style="padding:0" data-tour="maturities"><div class="card-head" style="padding:14px 16px 0"><h2>Maturing</h2><span class="hint">${(v => v ? `${money(v)} within 90 days` : 'nothing within 90 days')(mats.filter(m => m.days <= 90).reduce((t, m) => t + m.value, 0))}</span></div>
-      <div class="table-wrap" style="border:0"><table class="data compact"><thead><tr><th>Account</th><th>Type</th><th>Matures</th><th class="num">Value</th><th class="num">Yield</th></tr></thead><tbody>
-      ${mats.map(m => html`<tr><td><b>${m.a.name}</b></td><td>${typeLabel(m.a)}</td><td>${fmtDate(m.date)} <span class="small ${m.days < 0 ? 'neg' : m.days <= 30 ? '' : 'muted'}">${m.days < 0 ? `matured ${-m.days} day${m.days === -1 ? '' : 's'} ago — update or close it` : m.days === 0 ? 'today' : `in ${m.days} day${m.days === 1 ? '' : 's'}`}</span></td><td class="num">${money(m.value)}</td><td class="num">${+m.a.apy ? `${num(+m.a.apy, 2)}%` : '—'}</td></tr>`)}
-      </tbody></table></div></div>` : '';
+    const yrs = !one ? (parseDay(cur.date) - parseDay(first.date)) / (365.25 * 864e5) : 0;
+    const cagr = yrs >= 1 && first.net > 0 && cur.net > 0 ? Math.pow(cur.net / first.net, 1 / yrs) - 1 : null;
+    const avg = chg.length ? chg.reduce((a, x) => a + x.change, 0) / chg.length : null;
+    const best = chg.length ? chg.reduce((a, x) => (x.change > a.change ? x : a)) : null;
+    const worst = chg.length ? chg.reduce((a, x) => (x.change < a.change ? x : a)) : null;
+    const every = !one ? Math.round((parseDay(cur.date) - parseDay(first.date)) / 864e5 / (series.length - 1)) : null;
     const multiCcy = accts.some(a => !a.archivedAt && !sameMoney(ccyOf(a), displayCcy()));
     // converted to the display currency, with the account's own currency underneath (or the other way round)
     const balCell = (a, v, nat) => { const sg = a.kind === 'liability' ? -1 : 1; if (sameMoney(ccyOf(a), displayCcy())) return money(sg * v); const conv = money(sg * v), own = moneyIn(sg * nat, ccyOf(a)); return nativeFirst ? html`${own}<div class="dist">≈ ${conv}</div>` : html`${conv}<div class="dist">${own}</div>`; };
-    const liquidity = html`<div class="card"><div class="card-head"><h2>Liquidity</h2></div>
-      <div class="stat-label">Liquid share of assets</div><div class="stat-value">${pct(liquidShare, 0)}</div>
-      <div class="meter" style="height:10px"><span style="width:${(liquidShare || 0) * 100}%;background:${p.series[0]}"></span><span style="flex:1;background:${p.neutral}"></span></div>
-      <div class="legend-inline mt"><span><i style="background:${p.series[0]}"></i>Liquid ${money(cur.liquid, { compact: true })}</span><span><i style="background:${p.neutral}"></i>Illiquid ${money(cur.assets - cur.liquid, { compact: true })}</span></div>
-      ${liquidShare != null && liquidShare < 0.15 ? html`<div class="callout warn mt"><span class="ic">!</span><div>Under 15% of your assets are liquid.</div></div>` : ''}</div>`;
-    const debtCard = lCats.length ? html`<div class="card"><div class="card-head"><h2>Debt breakdown</h2><span class="hint">${debt.wRate != null ? `weighted APR ${num(debt.wRate, 2)}%` : ''}</span></div><div class="chart"><canvas id="n-debt"></canvas></div></div>` : '';
+    const short = d => fmtDate(d, { month: 'short', day: 'numeric' });
 
     body.innerHTML = String(html`
       <div class="stats big">
-        ${stat('Net worth', money(cur.net), { sub: ch != null ? html`<span class="${pnlClass(ch)}">${money(ch, { sign: true })}</span> since ${fmtDate(prev.date, { month: 'short', day: 'numeric' })}` : 'first update' })}
-        ${stat(range === 'all' ? 'Since you started' : `Change (${range.toUpperCase()})`, chRange != null ? money(chRange, { sign: true }) : '—', { cls: pnlClass(chRange), sub: chRange != null ? `${first.net > 0 ? pct(chRange / Math.abs(first.net), 1, { sign: true }) + ' · ' : ''}since ${fmtDate(first.date, { month: 'short', day: 'numeric', year: 'numeric' })}` : 'needs a second update' })}
+        ${stat('Net worth', money(cur.net), { sub: ch != null ? html`<span class="${pnlClass(ch)}">${money(ch, { sign: true })}</span> since ${short(prev.date)}` : 'first update' })}
+        ${stat(range === 'all' ? 'Since you started' : `Change (${range.toUpperCase()})`, chRange != null ? money(chRange, { sign: true }) : '—', { cls: pnlClass(chRange), sub: chRange != null ? `${first.net > 0 ? pct(chRange / Math.abs(first.net), 1, { sign: true }) + ' · ' : ''}since ${fmtDate(first.date)}` : 'needs a second update' })}
         ${stat('Total assets', money(cur.assets), { sub: `${accts.filter(a => a.kind !== 'liability' && !a.archivedAt).length} accounts` })}
         ${stat('Total debts', money(cur.liabilities), { cls: cur.liabilities ? 'neg' : '', sub: `${accts.filter(a => a.kind === 'liability' && !a.archivedAt).length} debts` })}
       </div>
       <div class="stats mt">
-        ${stat('Liquid net worth', money(cur.liquidNet), { cls: pnlClass(cur.liquidNet), sub: 'reachable in days, minus debts', help: 'Liquid assets (cash, savings, bills & bonds, funds) minus all debts — what you could reach within days.' })}
-        ${stat('Interest / month', io.earn.length ? money(io.earnMonth) : '—', { cls: io.earnMonth ? 'pos' : '', sub: io.earn.length ? `estimate · ${pct(io.blended, 2)} blended` : 'no APY set', help: 'What your interest-bearing accounts would earn per month at their APY and today’s balance. An estimate — balances don’t change on their own.' })}
-        ${stat('Debt-to-asset', pct(cur.assets ? cur.liabilities / cur.assets : null, 1), { cls: cur.assets && cur.liabilities / cur.assets > 0.5 ? 'neg' : '', help: 'Debts ÷ assets. Above 50% leaves you exposed to downturns.' })}
-        ${stat('Cash runway', efMonths != null ? `${num(efMonths, 1)} mo` : '—', { cls: efMonths != null && efMonths < 3 ? 'neg' : '', sub: efMonths != null ? (base.source === 'set' ? 'using the monthly spending set in Settings' : 'cash & savings ÷ monthly spending') : 'log spending or set it in Settings', help: 'How many months your cash and savings would cover your usual monthly spending — from what you’ve logged lately, or the amount set in Settings when there’s no recent spending.' })}
+        ${stat('Growth per year', cagr != null ? pct(cagr, 1, { sign: true }) : '—', { cls: pnlClass(cagr), sub: cagr != null ? `over ${num(yrs, 1)} years` : 'needs a year of history', help: 'The steady yearly rate that would take your net worth from the first update in this range to today.' })}
+        ${stat('Average change per update', avg != null ? money(avg, { sign: true }) : '—', { cls: pnlClass(avg), sub: chg.length ? `${chg.filter(x => x.change > 0).length} of ${chg.length} updates went up` : 'needs a second update' })}
+        ${stat('Best update', best ? money(best.change, { sign: true }) : '—', { cls: best ? pnlClass(best.change) : '', sub: best ? `${short(best.date)}${worst && worst.change < 0 ? ` · worst ${money(worst.change, { sign: true })}` : ''}` : '' })}
+        ${stat('Updates recorded', String(series.length), { sub: every != null ? `about every ${every} day${every === 1 ? '' : 's'}` : 'update again to start the trend' })}
       </div>
-      <div class="grid g-2-1 mt">
-        <div class="card" data-tour="nw-line"><div class="card-head"><h2>Net worth over time</h2><span class="hint">${allSeries.some(s => s.liabilities > 0) ? 'net worth, assets & debts' : 'each point is a date you updated'}</span></div>
-          ${one ? html`<div class="first-snap">${typeBreakdown(cur)}${notEnough('The trend line starts once you’ve updated balances on two different days.')}</div>` : html`<div class="chart tall"><canvas id="n-line"></canvas></div>`}</div>
-        <div class="card"><div class="card-head"><h2>Asset allocation</h2><span class="hint">by type</span></div><div class="chart tall"><canvas id="n-alloc"></canvas></div></div>
-      </div>
-      ${movedCard}
-      ${interestCard(io)}
-      ${matCard}
-      ${one ? html`<div class="grid ${debtCard ? 'g2' : ''} mt">${liquidity}${debtCard}</div>` : html`
-      <div class="grid g-2-1 mt">
-        <div class="card"><div class="card-head"><h2>Assets by type</h2><span class="hint">stacked</span></div><div class="chart"><canvas id="n-stack"></canvas></div></div>
-        ${liquidity}
-      </div>
-      <div class="grid ${debtCard ? 'g2' : ''} mt">
+      <div class="card mt" data-tour="nw-line"><div class="card-head"><h2>Net worth over time</h2><span class="hint">${allSeries.some(s => s.liabilities > 0) ? 'net worth, assets & debts' : 'each point is a date you updated'}</span></div>
+        ${one ? html`<div class="first-snap">${typeBreakdown(cur)}${notEnough('The trend line starts once you’ve updated balances on two different days.')}</div>` : html`<div class="chart tall"><canvas id="n-line"></canvas></div>`}</div>
+      ${one ? '' : html`<div class="grid g2 mt">
+        <div class="card"><div class="card-head"><h2>What it's made of, over time</h2><span class="hint">assets by type, stacked</span></div><div class="chart"><canvas id="n-stack"></canvas></div></div>
         <div class="card"><div class="card-head"><h2>Change per update</h2><span class="hint">how much net worth moved between updates</span></div><div class="chart"><canvas id="n-chg"></canvas></div></div>
-        ${debtCard}
       </div>`}
-      <div class="card mt" style="padding:0"><div class="card-head" style="padding:14px 16px 0"><h2>Accounts</h2><div class="row">${multiCcy ? html`<div class="seg sm" role="radiogroup" aria-label="Show balances in"><button data-native="0" class="${nativeFirst ? '' : 'on'}">${displayCcy()}</button><button data-native="1" class="${nativeFirst ? 'on' : ''}">Own currency</button></div>` : ''}<a class="hint" href="#/networth/accounts">Manage →</a></div></div>
+      <div class="card mt" style="padding:0"><div class="card-head" style="padding:14px 16px 0"><h2>Account by account</h2><div class="row">${multiCcy ? html`<div class="seg sm" role="radiogroup" aria-label="Show balances in"><button data-native="0" class="${nativeFirst ? '' : 'on'}">${displayCcy()}</button><button data-native="1" class="${nativeFirst ? 'on' : ''}">Own currency</button></div>` : ''}<a class="hint" href="#/networth/accounts">Manage →</a></div></div>
         <div class="table-wrap" style="border:0"><table class="data"><thead><tr><th>Account</th><th>Type</th><th class="num">Balance</th><th class="num">Change</th><th class="num">% of assets</th><th style="width:120px">Trend</th></tr></thead>
         <tbody>${accts.filter(a => !a.archivedAt).sort(byType(cur)).map(a => {
           const v = cur.byAcct[a.id] || 0, pv = prev ? prev.byAcct[a.id] || 0 : null;
           const d = pv == null ? null : (a.kind === 'liability' ? -(v - pv) : v - pv);
           const lu = lastUpdateOf(a);
-          return html`<tr><td><b>${a.name}</b>${lu ? html`<div class="small muted">updated ${fmtDate(lu, { month: 'short', day: 'numeric' })}</div>` : ''}</td><td>${typeLabel(a)}</td>
+          return html`<tr><td><b>${a.name}</b>${lu ? html`<div class="small muted">updated ${short(lu)}</div>` : ''}</td><td>${typeLabel(a)}</td>
             <td class="num ${a.kind === 'liability' ? 'neg' : ''}">${balCell(a, v, cur.byAcctNative[a.id] || 0)}</td><td class="num ${pnlClass(d)}">${d ? money(d, { sign: true }) : '—'}</td><td class="num">${a.kind === 'liability' ? '' : pct(cur.assets ? v / cur.assets : null, 1)}</td><td>${one ? '' : html`<div style="height:28px;width:110px"><canvas data-spark="${a.id}"></canvas></div>`}</td></tr>`;
         })}</tbody>
         <tfoot><tr><td colspan="2">Net worth</td><td class="num">${money(cur.net)}</td><td class="num ${pnlClass(ch)}">${ch != null ? money(ch, { sign: true }) : ''}</td><td colspan="2"></td></tr></tfoot></table></div></div>`);
 
+    if (one) return;
     const labels = dateLabels(series.map(s => s.date));
     const hasDebt = series.some(s => s.liabilities > 0);
-    if (!one) C.moneyLine(body.querySelector('#n-line'), {
+    C.moneyLine(body.querySelector('#n-line'), {
       labels,
       // assets & debts only add a line when there are debts (otherwise assets = net worth and debts sit at 0, flattening the chart)
       series: [{ label: 'Net worth', data: series.map(s => s.net), color: p.series[0], fill: !hasDebt }, ...(hasDebt ? [{ label: 'Assets', data: series.map(s => s.assets), color: p.series[2] }, { label: 'Debts', data: series.map(s => s.liabilities), color: p.series[1] }] : [])],
     });
-    C.doughnut(body.querySelector('#n-alloc'), { labels: aCats.map(c => c.label), values: aCats.map(c => cur.byCat[c.id]), colors: aCats.map(c => catColor(c.id, p)), center: { value: money(cur.assets, { compact: true }), label: 'assets' } });
-    if (!one) {
-      const cats = assetCats().filter(c => series.some(s => (s.byCat[c.id] || 0) > 0));
-      C.make(body.querySelector('#n-stack'), {
-        type: 'line',
-        data: { labels, datasets: cats.map(c => ({ label: c.label, data: series.map(s => s.byCat[c.id] || 0), borderColor: catColor(c.id, p), backgroundColor: C.alpha(catColor(c.id, p), 0.55), fill: true, borderWidth: 1, tension: 0.15, cubicInterpolationMode: 'monotone', pointRadius: 0 })) },
-        options: { interaction: { mode: 'index', intersect: false }, plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: c => ` ${c.dataset.label}: ${money(c.parsed.y)}` } } }, scales: { x: C.plainAxis({ ticks: { maxTicksLimit: 8, maxRotation: 0 } }), y: { stacked: true, ...C.moneyAxis() } } },
-      });
-      C.signBars(body.querySelector('#n-chg'), { labels: dateLabels(chg.map(d => d.date)), values: chg.map(d => d.change) });
-      body.querySelectorAll('[data-spark]').forEach(cv => { const id = cv.dataset.spark; const a = store.get('nwAccounts', id); C.sparkline(cv, series.map(s => s.byAcct[id] || 0), a.kind === 'liability' ? p.series[1] : p.series[0]); });
-    }
-    if (lCats.length) C.doughnut(body.querySelector('#n-debt'), { labels: lCats.map(c => c.label), values: lCats.map(c => cur.byCat[c.id]), colors: lCats.map(c => catColor(c.id, p)), center: { value: money(cur.liabilities, { compact: true }), label: 'owed' } });
+    const cats = assetCats().filter(c => series.some(s => (s.byCat[c.id] || 0) > 0));
+    C.make(body.querySelector('#n-stack'), {
+      type: 'line',
+      data: { labels, datasets: cats.map(c => ({ label: c.label, data: series.map(s => s.byCat[c.id] || 0), borderColor: catColor(c.id, p), backgroundColor: C.alpha(catColor(c.id, p), 0.55), fill: true, borderWidth: 1, tension: 0.15, cubicInterpolationMode: 'monotone', pointRadius: 0 })) },
+      options: { interaction: { mode: 'index', intersect: false }, plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: c => ` ${c.dataset.label}: ${money(c.parsed.y)}` } } }, scales: { x: C.plainAxis({ ticks: { maxTicksLimit: 8, maxRotation: 0 } }), y: { stacked: true, ...C.moneyAxis() } } },
+    });
+    C.signBars(body.querySelector('#n-chg'), { labels: dateLabels(chg.map(d => d.date)), values: chg.map(d => d.change) });
+    body.querySelectorAll('[data-spark]').forEach(cv => { const id = cv.dataset.spark; const a = store.get('nwAccounts', id); C.sparkline(cv, series.map(s => s.byAcct[id] || 0), a.kind === 'liability' ? p.series[1] : p.series[0]); });
   };
   draw();
   body.addEventListener('click', e => { const b = e.target.closest('[data-native]'); if (!b) return; nativeFirst = b.dataset.native === '1'; try { localStorage.setItem('journal.nativeFirst', nativeFirst ? '1' : '0'); } catch {} draw(); });
@@ -247,12 +212,11 @@ async function editAccountSimple(a) {
     body: String(html`<form id="nf" class="form-grid">
       <div class="field full">What is it?
         <div class="type-pick" role="radiogroup">${types.map(t => html`<label class="type-opt"><input type="radio" name="group" value="${t.id}" ${t.id === g0 ? raw('checked') : ''}><span><b>${t.label}</b><small>${t.hint}</small></span></label>`)}</div></div>
-      <label class="field span2">Name<input name="name" required value="${a.name || ''}" placeholder="e.g. Savings account, 6-month bill, Apartment"></label>
+      <label class="field span2">Name<input name="name" required value="${a.name || ''}" placeholder="e.g. Savings account, Current account, Apartment"></label>
       <label class="field">Currency${raw(ccySelect('currency', a.currency || displayCcy()))}</label>
       ${balField(a)}
       <label class="field yld">Interest / yield (APY %) <span class="hint">optional</span><input name="apy" type="number" step="any" min="0" max="100" value="${a.apy ?? ''}" placeholder="e.g. 3.5"></label>
       <label class="field lia">Interest rate (APR %) <span class="hint">optional</span><input name="rate" type="number" step="any" min="0" value="${a.rate ?? ''}"></label>
-      <label class="field mat">Matures on <span class="hint">optional</span><input name="maturity" type="date" value="${a.maturity || ''}"></label>
     </form>`),
     onMount: w => {
       const f = w.querySelector('#nf');
@@ -260,7 +224,6 @@ async function editAccountSimple(a) {
         const g = f.group.value, show = (sel, on) => { const e = w.querySelector(sel); if (e) e.hidden = !on; };
         show('.yld', g !== 'debt' && g !== 'assets');
         show('.lia', g === 'debt');
-        show('.mat', g === 'savings' || g === 'bonds');
       };
       f.addEventListener('change', sync); sync();
     },
@@ -274,7 +237,7 @@ async function editAccountSimple(a) {
   const obj = { ...a, name: res.name.trim(), currency: res.currency || displayCcy(),
     kind: isDebt ? 'liability' : 'asset', category: same ? a.category : groupInfo(g).cat,
     apy: isDebt ? null : toNum(res.apy), rate: isDebt ? toNum(res.rate) : null,
-    maturity: (g === 'savings' || g === 'bonds') && res.maturity ? res.maturity : null };
+    maturity: same ? a.maturity ?? null : null };
   if (!same) Object.assign(obj, { custody: '', purpose: '', liquid: null, payment: isDebt ? a.payment : null });
   return finishAccountSave(a, obj, res);
 }
@@ -363,16 +326,16 @@ export async function accounts(el) {
         : html`${moneyIn(sg * (cur.byAcctNative[a.id] || 0), ccyOf(a))}${!sameMoney(ccyOf(a), displayCcy()) ? html`<div class="dist">≈ ${money(sg * (cur.byAcct[a.id] || 0))}</div>` : ''}${lu && !a.archivedAt ? html`<div class="dist">updated ${fmtDate(lu, { month: 'short', day: 'numeric' })}</div>` : ''}`}</td>
       <td style="text-align:right;white-space:nowrap">${a.archivedAt || bulk ? '' : html`<button class="btn sm primary-soft" data-upd="${a.id}">Update</button> `}<button class="btn sm" data-edit="${a.id}">Edit</button></td></tr>`; })}
     </tbody></table></div></div>`; };
-  // grouped by type (the six Simple types, or the detailed Pro categories); biggest first inside each group
+  // grouped by type (the five Simple types, or the detailed Pro categories); biggest first inside each group
   const order = (a, b) => !!a.archivedAt - !!b.archivedAt || (cur.byAcct[b.id] || 0) - (cur.byAcct[a.id] || 0) || a.name.localeCompare(b.name);
   const types = [...assetCats(), ...liabCats()].map(c => ({ ...c, debt: liabCats().includes(c), list: accts.filter(a => catKey(a) === c.id && (a.kind === 'liability') === liabCats().includes(c)).sort(order) })).filter(g => g.list.length);
   el.innerHTML = String(html`<div class="page-head"><div><h1>Accounts</h1><div class="sub">Everything you own and owe, grouped by type. <b>Update</b> records today's balance — every update is kept, so your history builds itself.</div></div>
     <div class="actions">${accts.length && !bulk ? html`<a class="btn" href="#/networth/accounts?update=1">Update all</a>` : ''}${simpleMode() ? html`<button class="btn primary" data-new>+ Add account</button>` : html`<button class="btn" data-new-l>+ Add debt</button><button class="btn primary" data-new>+ Add asset</button>`}</div></div>
     ${bulk ? html`<div class="bulk-bar"><b>Update all balances</b><span class="small muted">Type what each account is worth; leave the rest as they are.</span><span class="spacer"></span><label class="row small">On <input type="date" id="bulk-date" value="${today()}" max="${today()}"></label><a class="btn" href="#/networth/accounts">Cancel</a><button class="btn primary" data-bulk-save>Save all</button></div>` : ''}
-    ${!accts.length ? html`<div class="empty"><div class="empty-title">No accounts yet</div><p>${simpleMode() ? 'Add your bank accounts, savings, bills and bonds, cash and the things you own — and any debts.' : 'Typical list: current accounts, savings, term deposits, bills and bonds, property — and any loans or cards.'}</p><button class="btn primary" data-new>+ Add account</button></div>` : html`
+    ${!accts.length ? html`<div class="empty"><div class="empty-title">No accounts yet</div><p>${simpleMode() ? 'Add your bank accounts, savings, cash and the things you own — and any debts.' : 'Typical list: current accounts, savings, term deposits, bills and bonds, property — and any loans or cards.'}</p><button class="btn primary" data-new>+ Add account</button></div>` : html`
     <div class="type-strip">${types.map(g => html`<a href="#grp-${g.id}" class="type-chip"><span>${g.label}</span><b class="${g.debt ? 'neg' : ''}">${money((g.debt ? -1 : 1) * g.list.filter(a => !a.archivedAt).reduce((s, a) => s + (cur.byAcct[a.id] || 0), 0), { compact: true })}</b></a>`)}</div>`}
     ${types.map(g => html`<div id="grp-${g.id}">${sec(g.label, g.list, { debt: g.debt, hint: g.hint && simpleMode() ? g.hint.split(' — ')[0] : '' })}</div>`)}
-    `);
+    ${bulk ? '' : capitalCard()}`);
   el.querySelectorAll('.type-chip').forEach(x => x.onclick = e => { e.preventDefault(); el.querySelector(x.getAttribute('href'))?.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
   el.querySelector('[data-bulk-save]')?.addEventListener('click', async () => {
     const date = el.querySelector('#bulk-date').value;
@@ -387,13 +350,84 @@ export async function accounts(el) {
     go('/networth');
   });
   el.addEventListener('click', async e => {
+    const row = e.target.closest('[data-cap-edit]');
+    if (row) { if (await editCapital(store.get('capital', row.dataset.capEdit))) refresh(); return; }
     const b = e.target.closest('button');
     if (!b) return;
-    if (b.dataset.new !== undefined) { if (await editAccount()) refresh(); }
+    if (b.dataset.capNew !== undefined) { if (await editCapital()) refresh(); }
+    else if (b.dataset.capBal) { if (await editCapitalBalance(b.dataset.capBal, store.get('capital', `bal-${b.dataset.capBal}`))) refresh(); }
+    else if (b.dataset.new !== undefined) { if (await editAccount()) refresh(); }
     else if (b.dataset.newL !== undefined) { if (await editAccount({ kind: 'liability', category: 'credit' })) refresh(); }
     else if (b.dataset.edit) { if (await editAccount(store.get('nwAccounts', b.dataset.edit))) refresh(); }
     else if (b.dataset.upd) { if (await updateAccount(store.get('nwAccounts', b.dataset.upd))) refresh(); }
   });
+}
+
+// ================= trading capital (outside net worth) =================
+// A small ledger for money that isn't counted as yours yet: what you put into trading in a year and
+// what the accounts were worth at the end of it. Balance − put in = a starting point for taxes.
+async function editCapital(c = {}) {
+  const last = [...store.all('capital')].filter(x => x.kind !== 'balance').sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))[0];
+  const res = await modal({
+    title: c.id ? 'Edit entry' : 'Money put into trading',
+    body: String(html`<form id="capf" class="form-grid" autocomplete="off">
+      <label class="field">Amount <span class="hint">minus = taken out</span><input name="amount" type="number" step="any" inputmode="decimal" required value="${c.amount ?? ''}" placeholder="0.00"></label>
+      <label class="field">Currency${raw(ccySelect('currency', c.currency || last?.currency || displayCcy()))}</label>
+      <label class="field">Date <span class="hint">decides the year</span><input name="date" type="date" required value="${c.date || today()}" max="${today()}"></label>
+      <label class="field">Note <span class="hint">optional</span><input name="note" maxlength="80" value="${c.note || ''}" placeholder="e.g. starting capital, top-up"></label>
+    </form>`),
+    onMount: w => setTimeout(() => w.querySelector('[name=amount]').focus()),
+    actions: [...(c.id ? [{ label: 'Delete', kind: 'danger ghost', value: () => 'delete' }] : []), { label: 'Cancel' }, { label: 'Save', kind: 'primary', value: w => {
+      const f = w.querySelector('#capf'), amount = toNum(f.amount.value);
+      if (!amount) { toast('Enter an amount', 'error'); return false; }
+      if (!f.date.value || f.date.value > today()) { toast('Pick a date (today or earlier)', 'error'); return false; }
+      return { kind: 'in', amount, currency: f.currency.value, date: f.date.value, note: f.note.value.trim() };
+    } }],
+  });
+  if (res === 'delete') { await store.del('capital', c.id); toast('Entry deleted'); return true; }
+  if (!res || typeof res !== 'object') return false;
+  await store.put('capital', { ...c, ...res });
+  toast('Saved');
+  return true;
+}
+async function editCapitalBalance(year, bal) {
+  const now = year === today().slice(0, 4);
+  const last = [...store.all('capital')].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))[0];
+  const res = await modal({
+    title: now ? `Trading balance now (${year})` : `Trading balance at the end of ${year}`,
+    body: String(html`<form id="capbf" class="form-grid" autocomplete="off">
+      <label class="field">Balance <span class="hint">all trading accounts together</span><input name="amount" type="number" step="any" min="0" inputmode="decimal" required value="${bal?.amount ?? ''}" placeholder="0.00"></label>
+      <label class="field">Currency${raw(ccySelect('currency', bal?.currency || last?.currency || displayCcy()))}</label>
+      <p class="small muted full" style="margin:0">Not added to your net worth. It's only compared with what you put in during ${year}.</p>
+    </form>`),
+    onMount: w => setTimeout(() => { const i = w.querySelector('[name=amount]'); i.focus(); i.select(); }),
+    actions: [...(bal ? [{ label: 'Remove', kind: 'danger ghost', value: () => 'delete' }] : []), { label: 'Cancel' }, { label: 'Save', kind: 'primary', value: w => {
+      const f = w.querySelector('#capbf');
+      if (f.amount.value === '' || !(+f.amount.value >= 0)) { toast('Enter the balance', 'error'); return false; }
+      return { amount: +f.amount.value, currency: f.currency.value };
+    } }],
+  });
+  if (res === 'delete') { await store.del('capital', bal.id); toast('Balance removed'); return true; }
+  if (!res || typeof res !== 'object') return false;
+  await store.put('capital', { ...(bal || {}), id: `bal-${year}`, kind: 'balance', date: now ? today() : `${year}-12-31`, ...res });
+  toast('Saved');
+  return true;
+}
+function capitalCard() {
+  const years = capitalYears().filter((y, i) => i === 0 || y.entries.length || y.bal);
+  const any = store.all('capital').length > 0;
+  const thisYear = today().slice(0, 4);
+  return html`<div class="card mt" id="capital" style="padding:0" data-tour="capital"><div class="card-head" style="padding:14px 16px 0"><div><h2>Trading capital</h2><div class="small muted">Kept outside your net worth. Note what you put in each year and what it's worth at the end — the difference is what you made.</div></div><button class="btn sm" data-cap-new>+ Money put in</button></div>
+    ${any ? html`<div class="table-wrap" style="border:0"><table class="data"><thead><tr><th>Year</th><th class="num">Put in</th><th class="num">Balance</th><th class="num">Result</th><th></th></tr></thead><tbody>
+      ${years.map(y => html`<tr><td><b>${y.year}</b><div class="small muted">${y.entries.length} entr${y.entries.length === 1 ? 'y' : 'ies'}</div></td>
+        <td class="num"><b>${money(y.put)}</b></td>
+        <td class="num">${y.balance != null ? html`${money(y.balance)}<div class="dist">${y.year === thisYear ? `as of ${fmtDate(y.bal.date, { month: 'short', day: 'numeric' })}` : 'at year end'}</div>` : html`<span class="muted">—</span>`}</td>
+        <td class="num ${pnlClass(y.result)}">${y.result != null ? html`<b>${money(y.result, { sign: true })}</b>${y.put > 0 ? html`<div class="dist">${pct(y.result / y.put, 1, { sign: true })}</div>` : ''}` : html`<span class="muted small">set the balance</span>`}</td>
+        <td style="text-align:right;white-space:nowrap"><button class="btn sm ${y.balance == null ? 'primary-soft' : ''}" data-cap-bal="${y.year}">${y.balance == null ? 'Set balance' : 'Balance'}</button></td></tr>
+        ${y.entries.map(c => html`<tr class="click cap-entry" data-cap-edit="${c.id}"><td class="small muted">${fmtDate(c.date, { month: 'short', day: 'numeric' })}</td><td class="num small">${moneyIn(c.amount, c.currency, { sign: c.amount < 0 })}</td><td colspan="3" class="small muted">${c.note || (c.amount < 0 ? 'Taken out' : 'Put in')}</td></tr>`)}`)}
+      </tbody></table></div>
+      <p class="small muted" style="padding:0 16px 14px;margin:8px 0 0">Result = balance − what you put in that year. Count the capital you start a year with as put in on 1 January. It's a starting point for your own records, not a tax figure.</p>`
+      : html`<p class="small muted" style="padding:0 16px 16px;margin:8px 0 0">Nothing noted yet. Add what you put into your trading accounts this year (including the capital you started the year with), then set the balance at the end of the year.</p>`}</div>`;
 }
 
 // ================= target allocation (shown on Insights) =================
@@ -431,84 +465,95 @@ function renderTargets(host, cur) {
   });
 }
 
-// ================= analytics =================
-export async function analytics(el, _p, { mode }) {
+// ================= insights: how it's spread and how healthy it is, today =================
+export async function analytics(el) {
   const series = nwSeries();
-  el.innerHTML = String(html`<div class="page-head"><div><h1>Insights</h1><div class="sub">Who holds your money, what it's for, how fast you could reach it, and how healthy the balance sheet looks.</div></div></div><div id="body"></div>`);
+  el.innerHTML = String(html`<div class="page-head"><div><h1>Insights</h1><div class="sub">${series.length ? `How your money is spread today, how fast you could reach it, what it earns and how healthy it looks. As of ${fmtDate(series.at(-1).date)}.` : 'How your money is spread, how fast you could reach it, what it earns and how healthy it looks.'}</div></div></div><div id="body"></div>`);
   const body = el.querySelector('#body');
   if (!series.length) { body.innerHTML = String(emptyNW()); return; }
   const cur = series.at(-1);
   const p = C.palette();
-  const t12 = baseline();
-  const y = interestOverview();
+  const pro = !simpleMode();
+  const base = baseline();
+  const io = interestOverview();
   const pos = positions(cur);
   const conc = concentration(pos);
-  const posTotal = pos.reduce((a, x) => a + x.value, 0);
+  const banks = bankExposure(cur), limit = +store.getSettings().plan?.depositLimit || 0;
+  const ccys = currencyExposure(cur);
+  const stale = staleAccounts(60);
+  const debt = debtMetrics(cur);
+  const mats = maturities();
+  const aCats = assetCats().filter(c => (cur.byCat[c.id] || 0) > 0);
+  const lCats = liabCats().filter(c => (cur.byCat[c.id] || 0) > 0);
+  const tiers = TIERS.map(t => ({ t, v: cur.byTier[t] || 0 }));
+  const reach = cashAtHand(cur);
+  const runway = base.avgExpenses ? reach / base.avgExpenses : null;
+  const liquidRunway = base.avgExpenses ? cur.liquid / base.avgExpenses : null;
+  const target = store.getSettings().plan?.emergencyMonths || 6;
+  const annualExp = base.avgExpenses ? base.avgExpenses * 12 : null;
   const custody = CUSTODY.map(c => ({ ...c, v: cur.byCustody[c.id] || 0 })).filter(c => c.v > 0).sort((a, b) => b.v - a.v);
   const purposes = Object.entries(cur.byPurpose).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
-  const tiers = TIERS.map(t => ({ t, v: cur.byTier[t] || 0 }));
-  const custTbl = html`<table class="data compact"><tbody>${custody.map(c => html`<tr><td>${c.label}</td><td class="num">${money(c.v)}</td><td class="num">${pct(c.v / cur.assets, 1)}</td></tr>`)}</tbody></table>`;
-  const purpTbl = html`<table class="data compact"><tbody>${purposes.map(([k, v]) => html`<tr><td>${k}</td><td class="num">${money(v)}</td><td class="num">${pct(v / cur.assets, 1)}</td></tr>`)}</tbody></table>`;
-  const banks = bankExposure(cur), limit = +store.getSettings().plan?.depositLimit || 0;
-  const annualExp = t12.avgExpenses ? t12.avgExpenses * 12 : null;
-  const cash = (cur.byCat.cash || 0) + (cur.byCat.savings || 0);
-  // growth
-  const monthly = [];
-  for (let i = 1; i < series.length; i++) monthly.push(series[i].net - series[i - 1].net);
-  const yrs = series.length > 1 ? (parseDay(cur.date) - parseDay(series[0].date)) / (365.25 * 864e5) : 0;
-  const cagr = yrs >= 1 && series[0].net > 0 && cur.net > 0 ? Math.pow(cur.net / series[0].net, 1 / yrs) - 1 : null;
+  const spendNote = base.source === 'set' ? 'using the monthly spending set in Settings' : 'from your logged spending';
+
   const health = [
-    ['Cash runway', t12.avgExpenses ? cash / t12.avgExpenses : null, v => `${num(v, 1)} months`, v => v >= 6 ? 'good' : v >= 3 ? 'ok' : 'bad', '3–6+ months of spending in cash & savings'],
-    ['Debt-to-asset', cur.assets ? cur.liabilities / cur.assets : null, v => pct(v, 1), v => v <= 0.3 ? 'good' : v <= 0.5 ? 'ok' : 'bad', 'under 50%, ideally under 30%'],
-    ['Solvency (net worth ÷ assets)', cur.assets ? cur.net / cur.assets : null, v => pct(v, 1), v => v >= 0.5 ? 'good' : v >= 0.2 ? 'ok' : 'bad', 'above 50%'],
-    ['Interest vs your spending', annualExp && y.earnYear ? y.earnYear / annualExp : null, v => pct(v, 1), v => v >= 1 ? 'good' : v >= 0.25 ? 'ok' : 'bad', 'yearly interest ÷ yearly spending (100% = interest covers it)'],
+    ['Cash runway', runway, v => `${num(v, 1)} months`, v => v >= target ? 'good' : v >= target / 2 ? 'ok' : 'bad', `cash and savings should cover your target of ${target} months of spending`],
+    ['Liquid runway', liquidRunway, v => `${num(v, 1)} months`, v => v >= 12 ? 'good' : v >= 6 ? 'ok' : 'bad', 'everything you could turn into cash within days, in months of spending'],
+    ['Interest vs your spending', annualExp && io.earnYear ? io.earnYear / annualExp : null, v => pct(v, 1), v => v >= 1 ? 'good' : v >= 0.25 ? 'ok' : 'bad', 'yearly interest ÷ yearly spending (100% = interest alone covers it)'],
+    ['Cash earning nothing', base.avgExpenses && reach ? io.idleValue / base.avgExpenses : null, v => `${money(io.idleValue)} · ${num(v, 1)} months of spending`, v => v <= 3 ? 'good' : v <= 6 ? 'ok' : 'bad', 'keep a few months of spending at hand; the rest could earn interest'],
     ['Most at one bank', banks.length && limit ? banks[0].value : null, v => `${money(v)} · ${banks[0].name}`, v => v <= limit ? 'good' : 'bad', `deposit guarantee schemes cover about ${money(limit)} per bank — set your limit in Settings`],
-    ['Cash earning nothing', t12.avgExpenses && cash ? y.idleValue / t12.avgExpenses : null, v => `${money(y.idleValue)} · ${num(v, 1)} months of spending`, v => v <= 3 ? 'good' : v <= 6 ? 'ok' : 'bad', 'keep a few months of spending at hand; the rest could earn interest'],
     ['Largest single account', conc.top1, v => `${pct(v, 1)} · ${pos[0]?.label}`, v => v <= 0.35 ? 'good' : v <= 0.6 ? 'ok' : 'bad', 'how much of what you own sits in one place'],
+    ...(cur.liabilities ? [['Debt-to-asset', cur.assets ? cur.liabilities / cur.assets : null, v => pct(v, 1), v => v <= 0.3 ? 'good' : v <= 0.5 ? 'ok' : 'bad', 'under 50%, ideally under 30%']] : []),
+    ['Balances up to date', stale.length, v => (v ? `${v} not updated for 60+ days` : 'all updated within 60 days'), v => v === 0 ? 'good' : v <= 2 ? 'ok' : 'bad', stale.length ? `oldest: ${stale.slice(0, 3).map(x => x.a.name).join(', ')}` : 'everything on this page is only as good as your last update'],
   ];
   const icon = k => (k === 'good' ? raw('<span class="pos">✔</span>') : k === 'ok' ? raw('<span style="color:var(--warn)">●</span>') : raw('<span class="neg">▲</span>'));
+  const bars = (rows, total, mark) => html`<div class="stack" style="gap:10px">${rows.map(r => html`<div><div class="row small"><b>${r.label}</b><span class="spacer"></span><b>${money(r.value)}</b><span class="muted">${pct(total ? r.value / total : 0, 0)}</span></div><div class="bar-mini lg"><span style="width:${Math.min(100, (r.value / (mark ? Math.max(mark, rows[0].value) : total || 1)) * 100)}%" class="${mark && r.value > mark ? 'over' : ''}"></span>${mark ? html`<i style="left:${Math.min(100, (mark / Math.max(mark, rows[0].value)) * 100)}%" title="Deposit guarantee limit"></i>` : ''}</div></div>`)}</div>`;
+  const bankTotal = banks.reduce((a, x) => a + x.value, 0);
 
   body.innerHTML = String(html`
     <div class="stats big">
-      ${stat('Net worth', money(cur.net), { sub: `as of ${fmtDate(cur.date)}` })}
-      ${stat('Growth (CAGR)', cagr != null ? pct(cagr, 1, { sign: true }) : '—', { sub: cagr != null ? `over ${num(yrs, 1)} years` : 'needs a year of history' })}
-      ${stat('Avg change / update', monthly.length ? money(monthly.reduce((a, b) => a + b, 0) / monthly.length, { sign: true }) : '—', { sub: monthly.length ? `${pct(monthly.filter(x => x > 0).length / monthly.length, 0)} of periods up` : '' })}
-      ${stat('Interest per year', y.earn.length ? money(y.earnYear) : '—', { sub: y.earn.length ? `estimate · ${money(y.earnMonth)} / month` : 'no APY set' })}
+      ${stat('Reachable within days', money(cur.liquid), { sub: cur.assets ? `${pct(cur.liquid / cur.assets, 0)} of what you own` : '', help: 'Everything you could turn into cash within days: cash, savings, bills and bonds, funds. Property, cars and locked deposits are left out.' })}
+      ${stat('Cash runway', runway != null ? `${num(runway, 1)} months` : '—', { cls: runway != null && runway < target / 2 ? 'neg' : '', sub: runway != null ? `target ${target} · ${spendNote}` : html`log spending or <a href="#/settings">set it</a>`, help: 'How many months your cash and savings would cover your usual monthly spending.' })}
+      ${stat('Interest / month', io.earn.length ? money(io.earnMonth) : '—', { cls: io.earnMonth ? 'pos' : '', sub: io.earn.length ? `estimate · ${pct(io.blended, 2)} blended` : 'no APY set', help: 'What your interest-bearing accounts would earn per month at their APY and today’s balance. An estimate — balances don’t change on their own.' })}
       ${stat('Largest account', conc.top1 != null ? pct(conc.top1, 0) : '—', { sub: pos[0] ? `${pos[0].label} · of your assets` : '' })}
       ${stat('Most at one bank', banks.length ? money(banks[0].value) : '—', { cls: banks.length && limit && banks[0].value > limit ? 'neg' : '', sub: banks.length ? `${banks[0].name}${limit ? (banks[0].value > limit ? ` · above the ${money(limit, { compact: true })} guarantee` : ` · within the ${money(limit, { compact: true })} guarantee`) : ''}` : 'no bank accounts', help: 'Bank money added up per bank (the institution you typed in Pro input, otherwise the account name). Deposit guarantee schemes cover a fixed amount per bank — set yours in Settings.' })}
     </div>
     <div class="grid g2 mt">
+      <div class="card" data-tour="alloc"><div class="card-head"><h2>Where it sits</h2><span class="hint">assets by type</span></div><div class="chart"><canvas id="a-alloc"></canvas></div></div>
+      <div class="card"><div class="card-head"><h2>How fast you could reach it</h2><span class="hint">liquidity ladder</span></div><div class="chart"><canvas id="a-tier"></canvas></div></div>
+    </div>
+    ${interestCard(io)}
+    <div class="grid g2 mt">
+      <div class="card"><div class="card-head"><h2>Largest accounts</h2><span class="hint">% of assets</span></div><div class="chart short"><canvas id="a-top"></canvas></div></div>
+      <div class="card"><div class="card-head"><h2>Banks${ccys.length > 1 ? ' & currencies' : ''}</h2><span class="hint">${limit ? `guarantee ${money(limit, { compact: true })} per bank` : 'bank money per bank'}</span></div>
+        ${banks.length ? bars(banks.slice(0, 6).map(x => ({ label: x.name, value: x.value })), bankTotal, limit) : html`<p class="small muted">No bank accounts yet.</p>`}
+        ${ccys.length > 1 ? html`<h3 class="mt">By currency</h3>${bars(ccys.map(x => ({ label: x.currency, value: x.value })), cur.assets)}<p class="small muted" style="margin:8px 0 0">Anything not in ${displayCcy()} moves with the exchange rate.</p>` : ''}</div>
+    </div>
+    ${pro ? html`<div class="grid g2 mt">
       <div class="card"><div class="card-head"><h2>Who holds it</h2><span class="hint">banks, brokers, at home</span></div><div class="chart"><canvas id="a-cust"></canvas></div></div>
       <div class="card"><div class="card-head"><h2>What it's for</h2><span class="hint">purpose buckets</span></div><div class="chart"><canvas id="a-purp"></canvas></div></div>
-    </div>
-    <div class="grid g2 mt">
-      <div class="card"><div class="card-head"><h2>Liquidity ladder</h2><span class="hint">how fast you could reach it</span></div><div class="chart short"><canvas id="a-tier"></canvas></div></div>
-      <div class="card"><div class="card-head"><h2>Largest accounts</h2><span class="hint">% of assets</span></div><div class="chart short"><canvas id="a-top"></canvas></div></div>
-    </div>
-    ${series.length > 1 ? html`<div class="grid g-2-1 mt">
-      <div class="card"><div class="card-head"><h2>Who holds it, over time</h2><span class="hint">stacked</span></div><div class="chart"><canvas id="a-custt"></canvas></div></div>
-      <div class="card"><div class="card-head"><h2>By holder</h2></div>${custTbl}
-        <h3 class="mt">By purpose</h3>${purpTbl}</div>
-    </div>` : html`<div class="grid g2 mt">
-      <div class="card"><div class="card-head"><h2>By holder</h2><span class="hint">over time after your next update</span></div>${custTbl}</div>
-      <div class="card"><div class="card-head"><h2>By purpose</h2></div>${purpTbl}</div>
-    </div>`}
-    <div class="card mt" data-tour="health"><div class="card-head"><h2>Balance-sheet health</h2><span class="hint">rules of thumb used by planners — context matters</span></div>
+    </div>` : ''}
+    <div class="card mt" data-tour="health"><div class="card-head"><h2>Health check</h2><span class="hint">rules of thumb — context matters</span></div>
       <div class="table-wrap" style="border:0"><table class="data"><thead><tr><th></th><th>Measure</th><th class="num">You</th><th>Guideline</th></tr></thead><tbody>
       ${health.map(([name, v, f, judge, guide]) => html`<tr><td style="width:28px">${v == null ? html`<span class="muted">–</span>` : icon(judge(v))}</td><td>${name}</td><td class="num">${v == null ? html`<span class="muted">needs data</span>` : f(v)}</td><td class="small muted">${guide}</td></tr>`)}
       </tbody></table></div></div>
+    ${mats.length || lCats.length ? html`<div class="grid ${mats.length && lCats.length ? 'g-2-1' : ''} mt">
+      ${mats.length ? html`<div class="card" style="padding:0" data-tour="maturities"><div class="card-head" style="padding:14px 16px 0"><h2>Maturing</h2><span class="hint">${(v => v ? `${money(v)} within 90 days` : 'nothing within 90 days')(mats.filter(m => m.days <= 90).reduce((t, m) => t + m.value, 0))}</span></div>
+        <div class="table-wrap" style="border:0"><table class="data compact"><thead><tr><th>Account</th><th>Matures</th><th class="num">Value</th><th class="num">Yield</th></tr></thead><tbody>
+        ${mats.map(m => html`<tr><td><b>${m.a.name}</b></td><td>${fmtDate(m.date)} <span class="small ${m.days < 0 ? 'neg' : m.days <= 30 ? '' : 'muted'}">${m.days < 0 ? `matured ${-m.days} day${m.days === -1 ? '' : 's'} ago — update or close it` : m.days === 0 ? 'today' : `in ${m.days} day${m.days === 1 ? '' : 's'}`}</span></td><td class="num">${money(m.value)}</td><td class="num">${+m.a.apy ? `${num(+m.a.apy, 2)}%` : '—'}</td></tr>`)}
+        </tbody></table></div></div>` : ''}
+      ${lCats.length ? html`<div class="card"><div class="card-head"><h2>Debt</h2><span class="hint">${debt.wRate != null ? `weighted APR ${num(debt.wRate, 2)}%` : ''}</span></div><div class="chart short"><canvas id="a-debt"></canvas></div>
+        <dl class="kv small mt"><dt>Debt-to-asset</dt><dd>${pct(cur.assets ? cur.liabilities / cur.assets : null, 1)}</dd>${io.payMonth ? html`<dt>Interest per month</dt><dd class="neg">${money(io.payMonth)}</dd>` : ''}${debt.minPay ? html`<dt>Payments per month</dt><dd>${money(debt.minPay)}</dd>` : ''}</dl></div>` : ''}
+    </div>` : ''}
     <div id="targets"></div>`);
   renderTargets(body.querySelector('#targets'), cur);
 
-  C.doughnut(body.querySelector('#a-cust'), { labels: custody.map(c => c.label), values: custody.map(c => c.v), colors: custody.map(c => p.series[CUSTODY.findIndex(x => x.id === c.id) % 8]), center: { value: money(cur.assets, { compact: true }), label: 'assets' } });
-  C.doughnut(body.querySelector('#a-purp'), { labels: purposes.map(x => x[0]), values: purposes.map(x => x[1]), center: { value: String(purposes.length), label: 'buckets' } });
+  C.doughnut(body.querySelector('#a-alloc'), { labels: aCats.map(c => c.label), values: aCats.map(c => cur.byCat[c.id]), colors: aCats.map(c => catColor(c.id, p)), center: { value: money(cur.assets, { compact: true }), label: 'assets' } });
   C.plainBars(body.querySelector('#a-tier'), { labels: tiers.map(x => x.t), values: tiers.map(x => x.v), horizontal: true, fmt: v => money(v, { compact: true }), label: 'Value' });
   const top = pos.slice(0, 8);
-  C.plainBars(body.querySelector('#a-top'), { labels: top.map(x => x.label), values: top.map(x => (x.value / posTotal) * 100), horizontal: true, fmt: v => num(v, 1) + '%', label: 'Share of assets' });
-  const used = CUSTODY.filter(c => series.some(s => (s.byCustody[c.id] || 0) > 0));
-  if (series.length > 1) C.make(body.querySelector('#a-custt'), {
-    type: 'line',
-    data: { labels: dateLabels(series.map(s => s.date)), datasets: used.map(c => { const col = p.series[CUSTODY.findIndex(x => x.id === c.id) % 8]; return { label: c.label, data: series.map(s => s.byCustody[c.id] || 0), borderColor: col, backgroundColor: C.alpha(col, 0.5), fill: true, borderWidth: 1, tension: 0.15, cubicInterpolationMode: 'monotone', pointRadius: 0 }; }) },
-    options: { interaction: { mode: 'index', intersect: false }, plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: c => ` ${c.dataset.label}: ${money(c.parsed.y)}` } } }, scales: { x: C.plainAxis({ ticks: { maxTicksLimit: 8, maxRotation: 0 } }), y: { stacked: true, ...C.moneyAxis() } } },
-  });
+  C.plainBars(body.querySelector('#a-top'), { labels: top.map(x => x.label), values: top.map(x => (x.value / cur.assets) * 100), horizontal: true, fmt: v => num(v, 1) + '%', label: 'Share of assets' });
+  if (pro) {
+    C.doughnut(body.querySelector('#a-cust'), { labels: custody.map(c => c.label), values: custody.map(c => c.v), colors: custody.map(c => p.series[CUSTODY.findIndex(x => x.id === c.id) % 8]), center: { value: String(custody.length), label: 'holders' } });
+    C.doughnut(body.querySelector('#a-purp'), { labels: purposes.map(x => x[0]), values: purposes.map(x => x[1]), center: { value: String(purposes.length), label: 'buckets' } });
+  }
+  if (lCats.length) C.doughnut(body.querySelector('#a-debt'), { labels: lCats.map(c => c.label), values: lCats.map(c => cur.byCat[c.id]), colors: lCats.map(c => catColor(c.id, p)), center: { value: money(cur.liabilities, { compact: true }), label: 'owed' } });
 }

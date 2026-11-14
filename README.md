@@ -4,7 +4,7 @@ A private money and mood journal that runs entirely in your browser.
 
 It keeps track of three things:
 
-- **What you own** — your real money: bank accounts, savings, term deposits, bills and bonds, cash, things of value, and any debts, added up into your net worth. Update a balance whenever you like; every update is kept, so you can see how your net worth moves over time. Log a **withdrawal** each time you move money out of a broker, an exchange or a business into your own accounts, and the app shows what came in, what you spent and what was left.
+- **What you own** — your real money: bank accounts, savings, cash, things of value, and any debts, added up into your net worth. Update a balance whenever you like; every update is kept, so you can see how your net worth moves over time. A separate page shows how that money is spread, how fast you could reach it and what it earns.
 - **Where your money goes** — log what you spend in a few seconds, set budgets, and keep an eye on subscriptions and bills.
 - **How you're doing** — a two-minute daily check-in (mood, energy, stress, sleep, habits, a few lines) that you can put side by side with your spending.
 
