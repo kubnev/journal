@@ -170,7 +170,7 @@ kbd { font: 11px ui-monospace, monospace; background: var(--surface-2); border: 
 .stat-value { font-family: var(--font-serif); font-size: 22px; font-weight: 550; font-variant-numeric: lining-nums; margin-top: 4px; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .stats.big .stat-value { font-size: 27px; }
 .stat-sub { font-size: 12px; color: var(--text-3); margin-top: 2px; line-height: 1.35; overflow-wrap: anywhere; }
-.tip { display: inline-grid; place-items: center; width: 15px; height: 15px; margin: 0 2px 0 5px; vertical-align: 1px; border-radius: 50%; border: 1px solid var(--border-strong); color: var(--text-3); font: 600 10px/1 inherit; font-family: inherit; text-transform: none; letter-spacing: 0; cursor: help; user-select: none; flex: none; }
+.tip { display: inline-grid; place-items: center; width: 15px; height: 15px; margin: 0 2px 0 5px; vertical-align: middle; position: relative; top: -0.08em; border-radius: 50%; border: 1px solid var(--border-strong); color: var(--text-3); font: 600 10px/1 inherit; font-family: inherit; text-transform: none; letter-spacing: 0; cursor: help; user-select: none; flex: none; }
 .tip:hover, .tip:focus-visible { color: var(--accent); border-color: var(--accent); outline: none; }
 .tip-bubble { position: fixed; z-index: 1000; max-width: min(300px, calc(100vw - 16px)); padding: 8px 11px; border-radius: 8px; background: var(--text-1); color: var(--bg); font-size: 12.5px; line-height: 1.45; font-weight: 450; text-transform: none; letter-spacing: 0; box-shadow: 0 4px 16px rgba(0, 0, 0, .18); pointer-events: none; }
 .tip-bubble[hidden] { display: none; }
@@ -346,8 +346,10 @@ table.heat td { white-space: nowrap; text-align: right; font-variant-numeric: ta
 }
 
 /* ---------- journal ---------- */
-.seg.rate { display: inline-flex; width: auto; }
-.seg.rate button { padding: 5px 8px; font-size: 14px; flex: none; min-width: 30px; }
+.seg.rate { display: flex; width: 100%; height: 34px; }
+.seg.rate button { padding: 0; height: 100%; font-size: 14px; line-height: 1; flex: 1 1 0; min-width: 0; display: grid; place-items: center; }
+.seg.rate.emoji button { font-size: 17px; }
+label.field input:not([type=checkbox]):not([type=radio]), label.field select { height: 34px; }
 details.fold { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); padding: 12px 16px; }
 details.fold > summary { cursor: pointer; font-family: var(--font-serif); font-weight: 550; font-size: 15px; }
 .entry-row { padding: 6px 8px; border-radius: 8px; color: var(--text-1); }
@@ -382,7 +384,7 @@ details.fold > summary { cursor: pointer; font-family: var(--font-serif); font-w
 .tour-card h2 { margin: 4px 0 6px; }
 .tour-card p { font-size: 13.5px; color: var(--text-2); }
 .btn.wrap { white-space: normal; text-align: left; max-width: 100%; height: auto; }
-.field-label { display: inline; }
+.field-label { display: block; line-height: 16px; }
 /* Simple account type picker */
 .type-pick { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; margin-top: 6px; }
 .type-opt { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); cursor: pointer; font-weight: 400; }

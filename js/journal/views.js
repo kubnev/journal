@@ -34,7 +34,7 @@ export function streaks() {
   return { current: cur, best, total: set.size };
 }
 
-const scale = (name, v, labels = MOODS) => html`<div class="seg rate" role="radiogroup" aria-label="${name}">${labels.map((m, i) => html`<button type="button" data-rate="${name}" data-v="${i + 1}" class="${+v === i + 1 ? 'on' : ''}" aria-label="${i + 1} of 5">${m}</button>`)}<input type="hidden" name="${name}" value="${v || ''}"></div>`;
+const scale = (name, v, labels = MOODS) => html`<div class="seg rate ${labels === MOODS ? 'emoji' : ''}" role="radiogroup" aria-label="${name}">${labels.map((m, i) => html`<button type="button" data-rate="${name}" data-v="${i + 1}" class="${+v === i + 1 ? 'on' : ''}" aria-label="${i + 1} of 5">${m}</button>`)}<input type="hidden" name="${name}" value="${v || ''}"></div>`;
 const NUMS = ['1', '2', '3', '4', '5'];
 
 // the 7 days up to `day`: mood per day, sleep and habits — so the side column is worth a glance
@@ -71,7 +71,7 @@ export async function journalDay(el) {
         <fieldset><legend>Check-in</legend><div class="form-grid">
           <label class="field">Mood${scale('mood', j.mood)}</label>
           <label class="field">Energy${scale('energy', j.energy, NUMS)}</label>
-          <label class="field">Stress <span class="hint">1 calm · 5 very stressed</span>${scale('stress', j.stress, NUMS)}</label>
+          <label class="field">Stress${scale('stress', j.stress, NUMS)}</label>
           <label class="field">Sleep (hours)<input name="sleep" type="number" step="0.5" min="0" max="24" value="${j.sleep ?? ''}"></label>
           <label class="field full">What's on your mind?<textarea name="mind" rows="3" placeholder="Anything — worries, plans, what you're looking forward to">${j.mind || ''}</textarea></label>
         </div>

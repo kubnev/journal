@@ -156,7 +156,7 @@ export default async function settingsView(el) {
     } else if (a === 'wipe') {
       const ok = await modal({
         title: 'Delete all data?',
-        body: `<p>This permanently deletes every transaction, bill, account, balance and setting stored in this browser. It cannot be undone.</p><label class="field">Type <b>DELETE</b> to confirm<input name="c" autocomplete="off"></label>`,
+        body: `<p>This permanently deletes every transaction, bill, account, balance and setting stored in this browser. It cannot be undone.</p><label class="field"><span class="field-label">Type <b>DELETE</b> to confirm</span><input name="c" autocomplete="off"></label>`,
         actions: [{ label: 'Cancel' }, { label: 'Delete everything', kind: 'danger', value: w => (w.querySelector('[name=c]').value === 'DELETE' ? true : (toast('Type DELETE to confirm', 'error'), false)) }],
       });
       if (ok === true) { await store.wipeEverything(); toast('All data deleted'); refresh(); }

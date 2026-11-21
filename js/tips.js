@@ -152,14 +152,15 @@ function decorate(root) {
     if (lab.closest('#mf, [data-notips]')) continue;   // CSV column mapper: the label already says it all
     const input = lab.querySelector('input[name], select[name], textarea[name]');
     const text = input && tipFor(input);
-    if (!text) continue;
-    if (lab.classList.contains('check')) { lab.append(' ', icon(text)); continue; }
+    if (lab.classList.contains('check')) { if (text) lab.append(' ', icon(text)); continue; }
+    if (lab.querySelector(':scope > .field-label')) { if (text) lab.querySelector(':scope > .field-label').append(icon(text)); continue; }
     // after the label's own words, before the hint / control
     const before = [...lab.childNodes].find(n => n.nodeType === 1 && (n.matches('.hint, input, select, textarea, div, datalist') || n.querySelector?.('input,select,textarea')));
     // wrap the label's own words + "?" in one inline line (labels stack their children vertically)
     const line = document.createElement('span'); line.className = 'field-label';
     for (const n of [...lab.childNodes]) { if (n === before) break; line.append(n); }
-    line.append(icon(text));
+    if (text) line.append(icon(text));
+    if (!line.textContent.trim() && !text) { while (line.firstChild) lab.insertBefore(line.firstChild, before || null); continue; }
     lab.insertBefore(line, before || null);
   }
   // table headers
