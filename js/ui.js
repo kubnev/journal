@@ -147,9 +147,10 @@ export const toNum = v => (v === '' || v == null ? null : isFinite(+v) ? +v : nu
 // Empty-state card
 export const empty = (title, text, action = '') => html`<div class="empty"><div class="empty-title">${title}</div><p>${text}</p>${raw(action)}</div>`;
 
+const QMARK = '<svg viewBox="0 0 10 10" width="9" height="9" aria-hidden="true"><path d="M3.2 3.4a1.8 1.8 0 1 1 2.6 1.6c-.5.3-.8.6-.8 1.2v.3" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/><circle cx="5" cy="8.3" r=".8" fill="currentColor"/></svg>';
 // Stat tile
 export function stat(label, value, { cls = '', sub = '', help = '' } = {}) {
-  return html`<div class="stat"><div class="stat-label">${label}${help ? html` <span class="tip" tabindex="0" role="button" aria-label="Help: ${help}" data-tip="${help}">?</span>` : ''}</div><div class="stat-value ${cls}">${value}</div>${sub ? html`<div class="stat-sub">${sub}</div>` : ''}</div>`;
+  return html`<div class="stat"><div class="stat-label">${label}${help ? html` <span class="tip" tabindex="0" role="button" aria-label="Help: ${help}" data-tip="${help}">${raw(QMARK)}</span>` : ''}</div><div class="stat-value ${cls}">${value}</div>${sub ? html`<div class="stat-sub">${sub}</div>` : ''}</div>`;
 }
 
 // Simple chip-input for tags drawn from a list, allowing new entries

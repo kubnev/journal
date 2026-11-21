@@ -143,7 +143,8 @@ const tipFor = el => {
   if (/^c:/.test(name)) return 'Monthly limit for this category. The bar shows spending so far; the marker is where an even pace would be today. Blank = no limit.';
   return null;
 };
-const icon = text => { const s = document.createElement('span'); s.className = 'tip'; s.tabIndex = 0; s.setAttribute('role', 'button'); s.setAttribute('aria-label', 'Help: ' + text); s.dataset.tip = text; s.textContent = '?'; return s; };
+const QMARK = '<svg viewBox="0 0 10 10" width="9" height="9" aria-hidden="true"><path d="M3.2 3.4a1.8 1.8 0 1 1 2.6 1.6c-.5.3-.8.6-.8 1.2v.3" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/><circle cx="5" cy="8.3" r=".8" fill="currentColor"/></svg>';
+const icon = text => { const s = document.createElement('span'); s.className = 'tip'; s.tabIndex = 0; s.setAttribute('role', 'button'); s.setAttribute('aria-label', 'Help: ' + text); s.dataset.tip = text; s.innerHTML = QMARK; return s; };
 
 function decorate(root) {
   // form fields: label.field / label.check holding a named input

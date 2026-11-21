@@ -171,6 +171,7 @@ kbd { font: 11px ui-monospace, monospace; background: var(--surface-2); border: 
 .stats.big .stat-value { font-size: 27px; }
 .stat-sub { font-size: 12px; color: var(--text-3); margin-top: 2px; line-height: 1.35; overflow-wrap: anywhere; }
 .tip { display: inline-grid; place-items: center; width: 15px; height: 15px; margin: 0 2px 0 5px; vertical-align: middle; position: relative; top: -0.08em; border-radius: 50%; border: 1px solid var(--border-strong); color: var(--text-3); font: 600 10px/1 inherit; font-family: inherit; text-transform: none; letter-spacing: 0; cursor: help; user-select: none; flex: none; }
+.tip svg { display: block; width: 9px; height: 9px; }
 .tip:hover, .tip:focus-visible { color: var(--accent); border-color: var(--accent); outline: none; }
 .tip-bubble { position: fixed; z-index: 1000; max-width: min(300px, calc(100vw - 16px)); padding: 8px 11px; border-radius: 8px; background: var(--text-1); color: var(--bg); font-size: 12.5px; line-height: 1.45; font-weight: 450; text-transform: none; letter-spacing: 0; box-shadow: 0 4px 16px rgba(0, 0, 0, .18); pointer-events: none; }
 .tip-bubble[hidden] { display: none; }
